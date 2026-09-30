@@ -18,6 +18,7 @@ export JAVA_HOME="/c/Program Files/Eclipse Adoptium/jdk-21.0.8.9-hotspot"
 ./gradlew :fabric:runClient
 ./gradlew :forge:runClient
 ./gradlew :fabric:runServer  # or :forge:runServer
+./gradlew :common:test       # JUnit Jupiter 6 tests for pure logic (config, ...)
 ```
 
 Toolchain: Gradle 9.8, Architectury Loom 1.17-SNAPSHOT, Architectury plugin **3.5**-SNAPSHOT (3.4 breaks with Loom 1.17), and GradleUp Shadow. Mappings are Mojang official mappings plus Parchment. Versions are set in `gradle.properties`.

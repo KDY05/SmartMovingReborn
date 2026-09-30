@@ -19,6 +19,9 @@
   "entrypoints": {
     "main": [
       "io.github.kdy05.smartmovingreborn.fabric.SmartMovingRebornFabric"
+    ],
+    "client": [
+      "io.github.kdy05.smartmovingreborn.fabric.SmartMovingRebornFabricClient"
     ]
   },
   "mixins": [
