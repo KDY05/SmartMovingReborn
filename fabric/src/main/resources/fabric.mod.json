@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "smartmovingreborn",
+  "version": "${version}",
+  "name": "Smart Moving Reborn",
+  "description": "A port of Divisor's Smart Moving to modern Minecraft: crawling, climbing, sliding, wall jumping, diving and more.",
+  "authors": [
+    "kdy05"
+  ],
+  "contributors": [
+    "Divisor (original Smart Moving)",
+    "JonnyNova (Smart Moving 1.10.2 port)"
+  ],
+  "contact": {
+    "sources": "https://github.com/kdy05/SmartMovingReborn"
+  },
+  "license": "GPL-3.0-or-later",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "io.github.kdy05.smartmovingreborn.fabric.SmartMovingRebornFabric"
+    ]
+  },
+  "mixins": [
+    "smartmovingreborn.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.21",
+    "minecraft": "~1.20.1",
+    "java": ">=17",
+    "fabric-api": "*"
+  }
+}

@@ -1,0 +1,28 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "GPL-3.0-or-later"
+issueTrackerURL = "https://github.com/kdy05/SmartMovingReborn/issues"
+
+[[mods]]
+modId = "smartmovingreborn"
+version = "${version}"
+displayName = "Smart Moving Reborn"
+authors = "kdy05"
+credits = "Divisor (original Smart Moving), JonnyNova (Smart Moving 1.10.2 port)"
+description = '''
+A port of Divisor's Smart Moving to modern Minecraft: crawling, climbing, sliding, wall jumping, diving and more.
+'''
+
+[[dependencies.smartmovingreborn]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.smartmovingreborn]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,1.20.2)"
+ordering = "NONE"
+side = "BOTH"
