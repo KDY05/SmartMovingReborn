@@ -52,11 +52,4 @@ class CrawlLogicTest {
         assertFalse(CrawlLogic.wantCrawl(true, true, true, true, false, false, false));
         assertFalse(CrawlLogic.wantCrawl(false, true, false, true, true, true, true));
     }
-
-    @Test
-    void inputIsScaledByTheCrawlFactorAndDiagonalsAreNormalized() {
-        assertEquals(0.15f, CrawlLogic.inputScale(0, 1, 0.15f), 1e-6);
-        assertEquals(0.15f / (float) Math.sqrt(2), CrawlLogic.inputScale(1, -1, 0.15f), 1e-6);
-        assertEquals(0.15f, CrawlLogic.inputScale(0, 0, 0.15f), 1e-6);
-    }
 }

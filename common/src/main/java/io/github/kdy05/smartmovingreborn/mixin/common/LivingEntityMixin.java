@@ -17,4 +17,9 @@ public abstract class LivingEntityMixin {
             cir.setReturnValue(result);
         }
     }
+
+    @Inject(method = "getFrictionInfluencedSpeed", at = @At("RETURN"), cancellable = true)
+    private void smartmovingreborn$frictionInfluencedSpeed(float friction, CallbackInfoReturnable<Float> cir) {
+        cir.setReturnValue(MovingController.frictionInfluencedSpeed((Entity) (Object) this, cir.getReturnValueF()));
+    }
 }

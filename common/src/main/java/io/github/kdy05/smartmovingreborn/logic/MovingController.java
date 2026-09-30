@@ -59,11 +59,12 @@ public final class MovingController {
         }
     }
 
-    /** {@code LocalPlayer#aiStep} TAIL (original {@code afterOnLivingUpdate}). */
+    /** {@code LocalPlayer#aiStep} TAIL (original {@code afterOnLivingUpdate} and {@code afterOnUpdate}). */
     public static void afterAiStep(Player player) {
         if (!isActiveSelf(player)) {
             return;
         }
+        self.afterTick(SmartMovingReborn.CLIENT_CONFIG);
     }
 
     /** Replaces {@code LocalPlayer#serverAiStep} when true (original {@code updateEntityActionState}). */
@@ -72,6 +73,7 @@ public final class MovingController {
             return false;
         }
         self.updateActionState(SmartMovingClient.SNEAK, SmartMovingClient.GRAB, SmartMovingClient.JUMP,
+                SmartMovingClient.SPRINT, SmartMovingClient.isForwardPressed(player),
                 SmartMovingReborn.CLIENT_CONFIG);
         return false;
     }
@@ -106,24 +108,39 @@ public final class MovingController {
         }
     }
 
-    /** Overrides {@code LocalPlayer#isShiftKeyDown} when non-null (original {@code isSneaking}). */
+    /**
+     * Overrides {@code LocalPlayer#isShiftKeyDown} when non-null (original {@code isSneaking}). Vanilla derives
+     * the crouching pose, the edge protection and the sneak state sent to the server from it. Riding keeps
+     * vanilla's, so that sneak still dismounts.
+     */
     public static Boolean isShiftKeyDown(Player player) {
-        if (!isActiveSelf(player)) {
+        if (!isActiveSelf(player) || player.isPassenger()) {
             return null;
         }
-        if (self.state.crawling) {
-            // Vanilla keeps sneaking players from walking off edges.
-            return !SmartMovingReborn.CLIENT_CONFIG.crawlOverEdge.get();
-        }
-        return null;
+        return SpeedLogic.shiftKeyDown(self.state.slow, player.onGround(), self.state.crawling,
+                SmartMovingReborn.CLIENT_CONFIG.crawlOverEdge.get());
     }
 
-    /** Overrides {@code AbstractClientPlayer#getFieldOfViewModifier} when non-null (original {@code getFOVMultiplier}). */
-    public static Float fieldOfViewModifier(Player player) {
+    /**
+     * The movement speed {@code AbstractClientPlayer#getFieldOfViewModifier} computes with (original
+     * {@code getFOVMultiplier}): the faded perspective speed instead of the current one.
+     */
+    public static double fieldOfViewSpeed(Player player, double movementSpeed) {
         if (!isActiveSelf(player)) {
-            return null;
+            return movementSpeed;
         }
-        return null;
+        return self.perspectiveSpeed();
+    }
+
+    /**
+     * {@code LivingEntity#getFrictionInfluencedSpeed}, the speed of walking and of air control: applies the
+     * original's speed factor. Vanilla flying keeps its speed until flying is ported.
+     */
+    public static float frictionInfluencedSpeed(Entity entity, float speed) {
+        if (!isActiveSelf(entity) || self.player.getAbilities().flying) {
+            return speed;
+        }
+        return speed * self.landSpeedFactor(SmartMovingReborn.CLIENT_CONFIG);
     }
 
     /** Overrides {@code LivingEntity#onClimbable} when non-null (original {@code isOnLadder}). */

@@ -16,6 +16,7 @@ import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +30,7 @@ public final class SmartMovingClient {
     public static final Button GRAB = new Button();
     public static final Button SNEAK = new Button();
     public static final Button JUMP = new Button();
+    public static final Button SPRINT = new Button();
     public static final MovingState LOCAL_STATE = new MovingState();
     private static final Map<Integer, MovingState> OTHER_STATES = new HashMap<>();
 
@@ -72,6 +74,7 @@ public final class SmartMovingClient {
         GRAB.update(KeyBindings.GRAB.isDown());
         SNEAK.update(player.input.shiftKeyDown);
         JUMP.update(player.input.jumping);
+        SPRINT.update(minecraft.options.keySprint.isDown());
 
         if (!serverPresent) {
             serverPresent = Network.isServerPresent();
@@ -149,6 +152,11 @@ public final class SmartMovingClient {
             return;
         }
         StatePacketCodec.decode(message.state(), OTHER_STATES.computeIfAbsent(message.entityId(), id -> new MovingState()));
+    }
+
+    /** Whether the own player's current movement input goes forward. */
+    public static boolean isForwardPressed(Player player) {
+        return ((LocalPlayer) player).input.forwardImpulse > 0;
     }
 
     /** The last state received for another player, or null. */

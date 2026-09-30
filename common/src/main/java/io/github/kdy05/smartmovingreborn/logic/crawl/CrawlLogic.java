@@ -40,13 +40,4 @@ public final class CrawlLogic {
         return crawlEnabled && !flying
                 && (crawling && inputContinueCrawl || grabStarted && sneakPressed && onGround);
     }
-
-    /**
-     * The factor for the movement input signs ({@code -1}, {@code 0} or {@code 1}) while crawling. The original
-     * dropped vanilla's input scaling (for example sneaking's 0.3), normalized diagonal input and applied the
-     * crawl factor to the speed instead.
-     */
-    public static float inputScale(float strafeSign, float forwardSign, float crawlFactor) {
-        return crawlFactor / (float) Math.max(1, Math.sqrt(strafeSign * strafeSign + forwardSign * forwardSign));
-    }
 }
