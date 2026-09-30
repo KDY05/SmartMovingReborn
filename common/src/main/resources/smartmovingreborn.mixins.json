@@ -13,6 +13,7 @@
   "client": [
     "client.AbstractClientPlayerMixin",
     "client.DebugScreenOverlayMixin",
+    "client.LivingEntityRendererMixin",
     "client.LocalPlayerMixin",
     "client.OptionsMixin"
   ],

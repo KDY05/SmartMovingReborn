@@ -39,6 +39,11 @@ public abstract class LocalPlayerMixin {
         }
     }
 
+    @Inject(method = "serverAiStep", at = @At("TAIL"))
+    private void smartmovingreborn$afterServerAiStep(CallbackInfo ci) {
+        MovingController.afterServerAiStep(smartmovingreborn$self());
+    }
+
     @Inject(method = "moveTowardsClosestSpace", at = @At("HEAD"), cancellable = true)
     private void smartmovingreborn$moveTowardsClosestSpace(double x, double z, CallbackInfo ci) {
         if (MovingController.moveTowardsClosestSpace(smartmovingreborn$self(), x, z)) {

@@ -4,6 +4,7 @@ import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.input.Button;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
+import io.github.kdy05.smartmovingreborn.logic.crawl.CrawlLogic;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
@@ -26,6 +27,8 @@ public final class SmartMovingClient {
     private static final int SERVER_DETECTION_TICKS = 100;
 
     public static final Button GRAB = new Button();
+    public static final Button SNEAK = new Button();
+    public static final Button JUMP = new Button();
     public static final MovingState LOCAL_STATE = new MovingState();
     private static final Map<Integer, MovingState> OTHER_STATES = new HashMap<>();
 
@@ -67,6 +70,8 @@ public final class SmartMovingClient {
             chat(player, config().enabled ? "enabled" : "disabled");
         }
         GRAB.update(KeyBindings.GRAB.isDown());
+        SNEAK.update(player.input.shiftKeyDown);
+        JUMP.update(player.input.jumping);
 
         if (!serverPresent) {
             serverPresent = Network.isServerPresent();
@@ -82,6 +87,7 @@ public final class SmartMovingClient {
 
         updateLocalState(minecraft, player);
         sendState(minecraft);
+        OTHER_STATES.keySet().removeIf(id -> minecraft.level.getEntity(id) == null);
     }
 
     private static void startSession(ClientPacketListener connection) {
@@ -96,12 +102,13 @@ public final class SmartMovingClient {
         OTHER_STATES.clear();
     }
 
-    // Until the movement logic exists, only the inputs and the player's size are reported.
     private static void updateLocalState(Minecraft minecraft, LocalPlayer player) {
         LOCAL_STATE.clear();
         if (!isActive()) {
+            CrawlLogic.reset();
             return;
         }
+        LOCAL_STATE.crawling = CrawlLogic.isCrawling();
         LOCAL_STATE.sneakButton = minecraft.options.keyShift.isDown();
         LOCAL_STATE.jumping = player.input.jumping;
         LOCAL_STATE.small = player.getBbHeight() < 1.0f;

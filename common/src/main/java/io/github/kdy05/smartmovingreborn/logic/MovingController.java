@@ -1,7 +1,10 @@
 package io.github.kdy05.smartmovingreborn.logic;
 
+import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
+import io.github.kdy05.smartmovingreborn.logic.crawl.CrawlLogic;
 import io.github.kdy05.smartmovingreborn.network.Network;
+import io.github.kdy05.smartmovingreborn.network.ServerNetworkHandler;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -28,6 +31,7 @@ public final class MovingController {
 
     public static void setSelf(Player player) {
         self = player;
+        CrawlLogic.reset();
     }
 
     /** Whether {@code entity} is the client's own player and Smart Moving is active for it. */
@@ -61,7 +65,19 @@ public final class MovingController {
         if (!isActiveSelf(player)) {
             return false;
         }
+        CrawlLogic.update(player, SmartMovingClient.SNEAK, SmartMovingClient.GRAB, SmartMovingClient.JUMP,
+                SmartMovingReborn.CLIENT_CONFIG);
         return false;
+    }
+
+    /** {@code LocalPlayer#serverAiStep} TAIL: adjusts the movement input vanilla has just set. */
+    public static void afterServerAiStep(Player player) {
+        if (!isActiveSelf(player)) {
+            return;
+        }
+        if (CrawlLogic.isCrawling()) {
+            CrawlLogic.applyInput(player, SmartMovingReborn.CLIENT_CONFIG);
+        }
     }
 
     /** Replaces {@code LocalPlayer#moveTowardsClosestSpace} when true (original {@code pushOutOfBlocks}). */
@@ -90,6 +106,10 @@ public final class MovingController {
     public static Boolean isShiftKeyDown(Player player) {
         if (!isActiveSelf(player)) {
             return null;
+        }
+        if (CrawlLogic.isCrawling()) {
+            // Vanilla keeps sneaking players from walking off edges.
+            return !SmartMovingReborn.CLIENT_CONFIG.crawlOverEdge.get();
         }
         return null;
     }
@@ -126,28 +146,54 @@ public final class MovingController {
         return false;
     }
 
+    /**
+     * Whether another player's name tag should be hidden ({@code move.crawl.name}, {@code move.sneak.name}).
+     * The sneaking rule also covers vanilla sneaking, like the original.
+     */
+    public static boolean hideNameTag(Entity entity) {
+        if (entity == self || !(entity instanceof Player player) || !SmartMovingClient.isActive()) {
+            return false;
+        }
+        MovingState state = SmartMovingClient.getOtherState(player.getId());
+        if (state != null && state.crawling) {
+            return !SmartMovingReborn.CLIENT_CONFIG.crawlNameTag.get();
+        }
+        return player.isDiscrete() && !SmartMovingReborn.CLIENT_CONFIG.sneakNameTag.get();
+    }
+
     // Pose and size
 
-    /** Replaces {@code Player#updatePlayerPose} when true, after setting the Smart Moving pose. */
+    /**
+     * Replaces {@code Player#updatePlayerPose} when true, after setting the Smart Moving pose. The client's own
+     * player uses the local logic and the server uses the state each client sent. Other players on a client
+     * need nothing: {@code RemotePlayer} skips this method and takes the pose the server synchronizes.
+     */
     public static boolean updatePose(Player player) {
-        if (!isActiveSelf(player)) {
+        boolean crawling;
+        if (player == self) {
+            if (!SmartMovingClient.isActive()) {
+                return false;
+            }
+            crawling = CrawlLogic.isCrawling();
+        } else {
+            MovingState state = stateOf(player);
+            if (state == null) {
+                return false;
+            }
+            crawling = state.crawling;
+        }
+        if (!crawling) {
             return false;
         }
-        Pose pose = poseFor(SmartMovingClient.LOCAL_STATE);
-        if (pose == null) {
-            return false;
-        }
-        player.setPose(pose);
+        player.setPose(Pose.SWIMMING);
         return true;
     }
 
-    /** The pose that a Smart Moving state forces, or null to keep vanilla's choice. */
-    private static Pose poseFor(MovingState state) {
-        // Crawling uses vanilla's crawling pose.
-        if (state.crawling) {
-            return Pose.SWIMMING;
-        }
-        return null;
+    /** Server: the last state {@code player}'s client sent, or null when Smart Moving does not apply to them. */
+    private static MovingState stateOf(Player player) {
+        return player instanceof ServerPlayer serverPlayer && isActiveOnServer(serverPlayer)
+                ? ServerNetworkHandler.getState(serverPlayer)
+                : null;
     }
 
     /** Overrides {@code Player#getDimensions} when non-null. */
