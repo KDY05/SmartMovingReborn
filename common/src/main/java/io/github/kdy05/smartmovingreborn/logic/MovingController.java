@@ -2,7 +2,6 @@ package io.github.kdy05.smartmovingreborn.logic;
 
 import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
-import io.github.kdy05.smartmovingreborn.logic.crawl.CrawlLogic;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.ServerNetworkHandler;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
@@ -24,19 +23,26 @@ public final class MovingController {
      * The client's own player, set when it is constructed. Always null on a dedicated server, so the hooks in
      * common classes never reach {@link SmartMovingClient} there.
      */
-    private static Player self;
+    private static SelfMoving self;
 
     private MovingController() {
     }
 
+    /** Client: called from the {@code LocalPlayer} constructor (a new one after respawning or changing dimension). */
     public static void setSelf(Player player) {
-        self = player;
-        CrawlLogic.reset();
+        self = new SelfMoving(player, SmartMovingClient.LOCAL_STATE);
+    }
+
+    /** Client: forgets the own player's moves, when Smart Moving is inactive or a new connection starts. */
+    public static void resetSelf() {
+        if (self != null) {
+            self.reset();
+        }
     }
 
     /** Whether {@code entity} is the client's own player and Smart Moving is active for it. */
     private static boolean isActiveSelf(Entity entity) {
-        return entity == self && SmartMovingClient.isActive();
+        return self != null && entity == self.player && SmartMovingClient.isActive();
     }
 
     /** Whether the server should apply Smart Moving to {@code player}, i.e. its client has the mod. */
@@ -65,7 +71,7 @@ public final class MovingController {
         if (!isActiveSelf(player)) {
             return false;
         }
-        CrawlLogic.update(player, SmartMovingClient.SNEAK, SmartMovingClient.GRAB, SmartMovingClient.JUMP,
+        self.updateActionState(SmartMovingClient.SNEAK, SmartMovingClient.GRAB, SmartMovingClient.JUMP,
                 SmartMovingReborn.CLIENT_CONFIG);
         return false;
     }
@@ -75,9 +81,7 @@ public final class MovingController {
         if (!isActiveSelf(player)) {
             return;
         }
-        if (CrawlLogic.isCrawling()) {
-            CrawlLogic.applyInput(player, SmartMovingReborn.CLIENT_CONFIG);
-        }
+        self.applyInput(SmartMovingReborn.CLIENT_CONFIG);
     }
 
     /** Replaces {@code LocalPlayer#moveTowardsClosestSpace} when true (original {@code pushOutOfBlocks}). */
@@ -107,7 +111,7 @@ public final class MovingController {
         if (!isActiveSelf(player)) {
             return null;
         }
-        if (CrawlLogic.isCrawling()) {
+        if (self.state.crawling) {
             // Vanilla keeps sneaking players from walking off edges.
             return !SmartMovingReborn.CLIENT_CONFIG.crawlOverEdge.get();
         }
@@ -151,49 +155,47 @@ public final class MovingController {
      * The sneaking rule also covers vanilla sneaking, like the original.
      */
     public static boolean hideNameTag(Entity entity) {
-        if (entity == self || !(entity instanceof Player player) || !SmartMovingClient.isActive()) {
+        if (!(entity instanceof Player player) || self != null && player == self.player
+                || !SmartMovingClient.isActive()) {
             return false;
         }
-        MovingState state = SmartMovingClient.getOtherState(player.getId());
+        MovingState state = stateOf(player);
         if (state != null && state.crawling) {
             return !SmartMovingReborn.CLIENT_CONFIG.crawlNameTag.get();
         }
         return player.isDiscrete() && !SmartMovingReborn.CLIENT_CONFIG.sneakNameTag.get();
     }
 
+    // State of any player
+
+    /**
+     * The Smart Moving state of any player on either side, or null when Smart Moving does not apply to them:
+     * the own player's while active, another player's last relayed state on a client, and on the server the
+     * last state that player's client sent.
+     */
+    public static MovingState stateOf(Player player) {
+        if (player instanceof ServerPlayer serverPlayer) {
+            return isActiveOnServer(serverPlayer) ? ServerNetworkHandler.getState(serverPlayer) : null;
+        }
+        if (self != null && player == self.player) {
+            return SmartMovingClient.isActive() ? self.state : null;
+        }
+        return player.level().isClientSide() ? SmartMovingClient.getOtherState(player.getId()) : null;
+    }
+
     // Pose and size
 
     /**
-     * Replaces {@code Player#updatePlayerPose} when true, after setting the Smart Moving pose. The client's own
-     * player uses the local logic and the server uses the state each client sent. Other players on a client
-     * need nothing: {@code RemotePlayer} skips this method and takes the pose the server synchronizes.
+     * Replaces {@code Player#updatePlayerPose} when true, after setting the Smart Moving pose. Other players on
+     * a client never get here: {@code RemotePlayer} skips this method and takes the pose the server synchronizes.
      */
     public static boolean updatePose(Player player) {
-        boolean crawling;
-        if (player == self) {
-            if (!SmartMovingClient.isActive()) {
-                return false;
-            }
-            crawling = CrawlLogic.isCrawling();
-        } else {
-            MovingState state = stateOf(player);
-            if (state == null) {
-                return false;
-            }
-            crawling = state.crawling;
-        }
-        if (!crawling) {
+        MovingState state = stateOf(player);
+        if (state == null || !state.crawling) {
             return false;
         }
         player.setPose(Pose.SWIMMING);
         return true;
-    }
-
-    /** Server: the last state {@code player}'s client sent, or null when Smart Moving does not apply to them. */
-    private static MovingState stateOf(Player player) {
-        return player instanceof ServerPlayer serverPlayer && isActiveOnServer(serverPlayer)
-                ? ServerNetworkHandler.getState(serverPlayer)
-                : null;
     }
 
     /** Overrides {@code Player#getDimensions} when non-null. */

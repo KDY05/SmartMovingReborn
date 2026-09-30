@@ -1,10 +1,8 @@
 package io.github.kdy05.smartmovingreborn.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
-import io.github.kdy05.smartmovingreborn.logic.crawl.CrawlLogic;
+import io.github.kdy05.smartmovingreborn.logic.MovingController;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.world.entity.Entity;
@@ -29,18 +27,12 @@ public final class SmartMovingRender {
         SmartMovingRender.renderingHand = renderingHand;
     }
 
-    /**
-     * Whether {@code entity} is a crawling player: the own player by the local logic, others by the state
-     * their client sent (which only arrives when the server has the mod).
-     */
+    /** Whether {@code entity} is a crawling player (by the local logic for the own player). */
     public static boolean isCrawling(Entity entity) {
         if (!(entity instanceof AbstractClientPlayer player)) {
             return false;
         }
-        if (player == Minecraft.getInstance().player) {
-            return SmartMovingClient.isActive() && CrawlLogic.isCrawling();
-        }
-        MovingState state = SmartMovingClient.getOtherState(player.getId());
+        MovingState state = MovingController.stateOf(player);
         return state != null && state.crawling;
     }
 

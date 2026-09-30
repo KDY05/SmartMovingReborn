@@ -4,7 +4,7 @@ import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.input.Button;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
-import io.github.kdy05.smartmovingreborn.logic.crawl.CrawlLogic;
+import io.github.kdy05.smartmovingreborn.logic.MovingController;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
@@ -98,17 +98,21 @@ public final class SmartMovingClient {
         stateSent = false;
         lastPlayerCount = 0;
         lastPlayerId = -1;
+        MovingController.resetSelf();
         LOCAL_STATE.clear();
         OTHER_STATES.clear();
     }
 
+    /**
+     * The moves in {@link #LOCAL_STATE} are kept by the movement logic during the player's tick; only the
+     * input and size flags are filled in here.
+     */
     private static void updateLocalState(Minecraft minecraft, LocalPlayer player) {
-        LOCAL_STATE.clear();
         if (!isActive()) {
-            CrawlLogic.reset();
+            MovingController.resetSelf();
+            LOCAL_STATE.clear();
             return;
         }
-        LOCAL_STATE.crawling = CrawlLogic.isCrawling();
         LOCAL_STATE.sneakButton = minecraft.options.keyShift.isDown();
         LOCAL_STATE.jumping = player.input.jumping;
         LOCAL_STATE.small = player.getBbHeight() < 1.0f;
