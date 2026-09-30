@@ -58,6 +58,9 @@ public final class SmartMovingClientConfig extends SmartMovingConfig {
             "To switch on/off the server config overridden status message when joining a multiplayer game (Relevant only if \"move.config.chat\" is not false)")
             .dependsOn(configChat::get);
 
+    public final BooleanProperty debugState = section("Debugging", "Options for developing Smart Moving Reborn",
+            off("move.debug.state", "Whether to show the Smart Moving states of yourself and the targeted player on the F3 debug screen"));
+
     @Override
     protected List<String> fileHeader() {
         return List.of(

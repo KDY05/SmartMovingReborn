@@ -34,6 +34,9 @@ Toolchain: Gradle 9.8, Architectury Loom 1.17-SNAPSHOT, Architectury plugin **3.
 - Loader-specific code is limited to network channels, keybinding registration, config paths and event wiring, and goes through `@ExpectPlatform`. The implementations live in `<package>.fabric` / `<package>.forge`, in a class named `<CommonClass>Impl`.
 - The architectury plugin shadows `common` into each platform jar, so there is no Architectury API runtime dependency.
 - `forge:runClient` passes `--mixin.config` twice. This is harmless: the config is applied once.
+- There is no refmap: Loom remaps the Mixin annotation targets inside the built classes (intermediary names on Fabric, SRG names on Forge).
+- Networking: the client sends its encoded `MovingState` (`state/StatePacketCodec`, the original's bit layout) and the server relays it to the players tracking the sender (`network/ServerNetworkHandler`, which reads `ChunkMap` trackers through accessor mixins). Either side may lack the mod: Forge's channel uses `acceptMissingOr`, and `mods.toml` sets `displayTest = "IGNORE_ALL_VERSION"`. Nothing is sent to a peer without the channel. A client that sees no channel within 100 ticks of joining stays disabled.
+- `move.debug.state=true` in the client config adds Smart Moving states to the F3 screen.
 
 ## Reference material (read-only, outside this repo)
 

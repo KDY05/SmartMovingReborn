@@ -8,6 +8,8 @@ modId = "smartmovingreborn"
 version = "${version}"
 displayName = "Smart Moving Reborn"
 authors = "kdy05"
+# Installing on only one side is allowed; Smart Moving then stays off.
+displayTest = "IGNORE_ALL_VERSION"
 credits = "Divisor (original Smart Moving), JonnyNova (Smart Moving 1.10.2 port)"
 description = '''
 A port of Divisor's Smart Moving to modern Minecraft: crawling, climbing, sliding, wall jumping, diving and more.

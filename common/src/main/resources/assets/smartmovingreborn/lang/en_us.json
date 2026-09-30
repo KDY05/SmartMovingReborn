@@ -1,0 +1,8 @@
+{
+  "key.categories.smartmovingreborn": "Smart Moving",
+  "key.smartmovingreborn.grab": "Grab",
+  "key.smartmovingreborn.toggle": "Toggle Smart Moving",
+  "chat.smartmovingreborn.enabled": "Smart Moving enabled",
+  "chat.smartmovingreborn.disabled": "Smart Moving disabled",
+  "chat.smartmovingreborn.server_missing": "Smart Moving is off: this server does not have Smart Moving Reborn installed"
+}

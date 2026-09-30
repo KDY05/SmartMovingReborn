@@ -3,9 +3,13 @@
   "minVersion": "0.8",
   "package": "io.github.kdy05.smartmovingreborn.mixin",
   "compatibilityLevel": "JAVA_17",
-  "mixins": [],
+  "mixins": [
+    "server.ChunkMapAccessor",
+    "server.TrackedEntityAccessor"
+  ],
   "client": [
-    "client.MinecraftMixin"
+    "client.DebugScreenOverlayMixin",
+    "client.OptionsMixin"
   ],
   "injectors": {
     "defaultRequire": 1
