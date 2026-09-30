@@ -13,9 +13,11 @@
   "client": [
     "client.AbstractClientPlayerMixin",
     "client.DebugScreenOverlayMixin",
+    "client.HumanoidModelMixin",
     "client.LivingEntityRendererMixin",
     "client.LocalPlayerMixin",
-    "client.OptionsMixin"
+    "client.OptionsMixin",
+    "client.PlayerRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
