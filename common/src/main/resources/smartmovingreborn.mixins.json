@@ -4,11 +4,16 @@
   "package": "io.github.kdy05.smartmovingreborn.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
+    "common.LivingEntityMixin",
+    "common.PlayerMixin",
     "server.ChunkMapAccessor",
+    "server.ServerGamePacketListenerImplMixin",
     "server.TrackedEntityAccessor"
   ],
   "client": [
+    "client.AbstractClientPlayerMixin",
     "client.DebugScreenOverlayMixin",
+    "client.LocalPlayerMixin",
     "client.OptionsMixin"
   ],
   "injectors": {
