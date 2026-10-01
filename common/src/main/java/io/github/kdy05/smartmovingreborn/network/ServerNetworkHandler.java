@@ -29,7 +29,7 @@ public final class ServerNetworkHandler {
         StatePacketCodec.decode(message.state(), state);
         // Shrink right away: the next movement packet may already lead into a one block high gap, and it can
         // be handled before the player's tick updates the pose.
-        if (state.crawling) {
+        if (state.lying()) {
             sender.setPose(Pose.SWIMMING);
         }
 

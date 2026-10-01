@@ -20,6 +20,17 @@ public final class ToggleState {
         return crawlToggled;
     }
 
+    /**
+     * A move other than the crawl input turned into crawling ({@code toCrawling}): the toggle starts, and the
+     * sneak release still to come does not end it.
+     */
+    public void toCrawling(boolean crawlMode) {
+        if (crawlMode) {
+            crawlToggled = true;
+        }
+        ignoreNextSneakRelease = true;
+    }
+
     public void reset() {
         sneakToggled = false;
         crawlToggled = false;

@@ -2,6 +2,8 @@ package io.github.kdy05.smartmovingreborn.logic;
 
 import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
+import io.github.kdy05.smartmovingreborn.config.SmartMovingConfig;
+import io.github.kdy05.smartmovingreborn.logic.slide.SlideLogic;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.ServerNetworkHandler;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
@@ -126,6 +128,11 @@ public final class MovingController {
         return self != null && SmartMovingClient.isActive() ? self.jumpCharge() : 0;
     }
 
+    /** The own player's head jump charge for the charge bar, 0 while Smart Moving is inactive. */
+    public static float headJumpCharge() {
+        return self != null && SmartMovingClient.isActive() ? self.headJumpCharge() : 0;
+    }
+
     /**
      * The movement speed {@code AbstractClientPlayer#getFieldOfViewModifier} computes with (original
      * {@code getFOVMultiplier}): the faded perspective speed instead of the current one.
@@ -139,12 +146,14 @@ public final class MovingController {
 
     /**
      * {@code LivingEntity#getFrictionInfluencedSpeed}, the speed of walking and of air control: applies the
-     * original's speed factor. Vanilla flying keeps its speed until flying is ported.
+     * original's speed factor, and notes the friction vanilla is about to damp with. Vanilla flying keeps its
+     * speed until flying is ported.
      */
-    public static float frictionInfluencedSpeed(Entity entity, float speed) {
+    public static float frictionInfluencedSpeed(Entity entity, float friction, float speed) {
         if (!isActiveSelf(entity) || self.player.getAbilities().flying) {
             return speed;
         }
+        self.beforeFrictionMove(friction);
         return speed * self.landSpeedFactor(SmartMovingReborn.CLIENT_CONFIG);
     }
 
@@ -161,8 +170,16 @@ public final class MovingController {
         if (!isActiveSelf(player)) {
             return false;
         }
-        self.handleJumping(SmartMovingReborn.CLIENT_CONFIG);
+        self.beforeTravel(SmartMovingReborn.CLIENT_CONFIG);
         return false;
+    }
+
+    /** {@code Player#travel} TAIL: the damping of slides and gliding head jumps. */
+    public static void afterTravel(Player player) {
+        if (!isActiveSelf(player)) {
+            return;
+        }
+        self.afterTravel(SmartMovingReborn.CLIENT_CONFIG);
     }
 
     /**
@@ -213,12 +230,26 @@ public final class MovingController {
     // Pose and size
 
     /**
+     * Whether {@code LivingEntity#updateSwimAmount} should keep the swim amount at 0: the player lies in
+     * {@code Pose.SWIMMING} for a Smart Moving move, whose model lies down by itself. Vanilla would otherwise
+     * build the amount up, tilt the model and swing the arms, and fade both out over several ticks after
+     * standing up.
+     */
+    public static boolean suppressSwimAmount(Entity entity) {
+        if (!(entity instanceof Player player)) {
+            return false;
+        }
+        MovingState state = stateOf(player);
+        return state != null && state.lying();
+    }
+
+    /**
      * Replaces {@code Player#updatePlayerPose} when true, after setting the Smart Moving pose. Other players on
      * a client never get here: {@code RemotePlayer} skips this method and takes the pose the server synchronizes.
      */
     public static boolean updatePose(Player player) {
         MovingState state = stateOf(player);
-        if (state == null || !state.crawling) {
+        if (state == null || !state.lying()) {
             return false;
         }
         player.setPose(Pose.SWIMMING);
@@ -231,6 +262,24 @@ public final class MovingController {
     }
 
     // Server
+
+    /**
+     * {@code LivingEntity#calculateFallDamage} RETURN on the server: a player landing head first takes the head
+     * jump's fall damage ({@code handleCrash}) instead of vanilla's. The client's last state still says head
+     * jumping, since it is sent after the movement packet that lands.
+     */
+    public static int fallDamage(Entity entity, float fallDistance, float multiplier, int damage) {
+        if (!(entity instanceof ServerPlayer player) || !isActiveOnServer(player)) {
+            return damage;
+        }
+        MovingState state = ServerNetworkHandler.getState(player);
+        if (state == null || !state.headJumping) {
+            return damage;
+        }
+        SmartMovingConfig config = SmartMovingReborn.SERVER_CONFIG;
+        return SlideLogic.headFallDamage(fallDistance, multiplier, config.headFallDamageStartDistance.get(),
+                config.headFallDamageFactor.get());
+    }
 
     /** {@code ServerGamePacketListenerImpl#handleMovePlayer}, once on the server thread (the original's core mod). */
     public static void beforeHandleMovePlayer(ServerPlayer player) {

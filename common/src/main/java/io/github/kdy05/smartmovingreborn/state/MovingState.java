@@ -45,6 +45,11 @@ public final class MovingState {
         StatePacketCodec.decode(0, this);
     }
 
+    /** Crawling, sliding or head jumping: the moves that use vanilla's crawling pose, {@code Pose.SWIMMING}. */
+    public boolean lying() {
+        return crawling || sliding || headJumping;
+    }
+
     /** Short human-readable form for the debug screen, e.g. {@code crawling small hands=2}. */
     public String describe() {
         List<String> parts = new ArrayList<>();

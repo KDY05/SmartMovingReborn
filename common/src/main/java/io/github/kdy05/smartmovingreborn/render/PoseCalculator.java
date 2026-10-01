@@ -110,16 +110,84 @@ final class PoseCalculator {
     }
 
     /**
+     * Sliding, from {@code SmartMovingModel.setRotationAngles}: lying face down, arms stretched ahead, the body
+     * rocking a little with the distance slid. The body already faces the slide's direction (see
+     * {@link SmartMovingRender#beforeRender}). The original rolled the head by the view's offset from the body
+     * yaw, which it had just set to the view direction, so the head does not follow the view.
+     */
+    void slide(float limbSwing, float limbSwingAmount) {
+        float distance = limbSwing * 0.7f;
+        float walkFactor = factor(limbSwingAmount, 0, 1) * 0.8f;
+
+        head.xRot = -PI * 3 / 8;
+        head.z = -2;
+
+        outer.y = 5;
+        outer.xRot = PI / 2;
+        body.order = RotationOrder.YXZ;
+        body.yOffset = -0.4f;
+        body.y = 6.5f;
+        body.xRot = Mth.cos(distance - PI / 4) * 0.09817477f * walkFactor;
+        body.yRot = Mth.cos(distance + PI / 4) * 0.09817477f * walkFactor;
+
+        rightLeg.xRot = Mth.cos(distance + PI) * 0.09817477f * walkFactor + 0.09817477f;
+        leftLeg.xRot = Mth.cos(distance + PI / 2) * 0.09817477f * walkFactor + 0.09817477f;
+        rightLeg.zRot = PI / 16;
+        leftLeg.zRot = -PI / 16;
+
+        rightArm.order = RotationOrder.YZX;
+        leftArm.order = RotationOrder.YZX;
+        rightArm.xRot = Mth.cos(distance + PI / 2) * 0.09817477f * walkFactor + PI - 0.09817477f;
+        leftArm.xRot = Mth.cos(distance - PI) * 0.09817477f * walkFactor + PI - 0.09817477f;
+        rightArm.zRot = PI / 8;
+        leftArm.zRot = -PI / 8;
+        rightArm.yRot = -PI / 2;
+        leftArm.yRot = PI / 2;
+    }
+
+    /**
+     * Head jumping, from {@code SmartMovingModel.setRotationAngles}: the body tilts along the flight path, the
+     * arms reach ahead and close in as the flight turns down, and the limbs bend while flying flat. The body
+     * already faces the flight's direction (see {@link SmartMovingRender#beforeRender}). The head stays in line
+     * with the body: the original skipped the head turn for its own poses.
+     *
+     * @param tilt           the body's tilt, easing towards {@code PI / 2 - verticalAngle} ({@link OuterFade})
+     * @param verticalAngle  the flight path's angle above the horizontal, -pi/2 to pi/2
+     * @param armLimit       at most this much closing in of the arms, 0 to 1
+     */
+    void headJump(float tilt, float verticalAngle, float armLimit) {
+        outer.xRot = tilt;
+        // Set before the original faded the outer joint, so from the unfaded tilt.
+        head.xRot = -(PI / 2 - verticalAngle) / 2;
+
+        float bendFactor = Math.min(factor(verticalAngle, PI / 2, 0), factor(verticalAngle, -PI / 2, 0));
+        rightArm.xRot = bendFactor * -PI / 4;
+        leftArm.xRot = bendFactor * -PI / 4;
+        rightLeg.xRot = bendFactor * -PI / 4;
+        leftLeg.xRot = bendFactor * -PI / 4;
+
+        float armFactorZ = Math.min(factor(verticalAngle, PI / 2, -PI / 2), armLimit);
+        rightArm.zRot = PI * 7 / 8 + armFactorZ * PI / 4;
+        leftArm.zRot = -PI * 7 / 8 - armFactorZ * PI / 4;
+        float legFactorZ = factor(verticalAngle, -PI / 2, PI / 2);
+        rightLeg.zRot = 0.09817477f * legFactorZ;
+        leftLeg.zRot = -0.09817477f * legFactorZ;
+    }
+
+    /**
      * Side and back jumps, from {@code SmartMovingModel.animateAngleJumping}: the legs turn towards the jump
      * and spread, the arms lift to the side. It replaces only the walking swing of vanilla's pose, so the head
-     * and body stay vanilla's and only the limbs are written. The body already faces the view direction (see
-     * {@link SmartMovingRender#beforeRender}), so the pelvis needs no turn. Item holding, attack swing and arm
-     * bobbing on the arms are lost for the jump; the original kept them.
+     * and body stay vanilla's and only the limbs are written. The body turns towards the view direction (see
+     * {@link SmartMovingRender#beforeRender}), and the pelvis makes up what is left so that the jump angle counts
+     * from the view. Item holding, attack swing and arm bobbing on the arms are lost for the jump; the original
+     * kept them.
      *
      * @param angleJumpType the jump direction in eighths of a turn, 2 (left) to 6 (right)
+     * @param pelvisYaw     the view yaw minus the body's target yaw, in radians
      */
-    void angleJump(HumanoidModel<?> model, int angleJumpType) {
+    void angleJump(HumanoidModel<?> model, int angleJumpType, float pelvisYaw) {
         float angle = angleJumpType * PI / 4;
+        pelvic.yRot = pelvisYaw;
         float backness = 1 - Math.abs(angle - PI) / (PI / 2);
         float leftness = -Math.min(angle - PI, 0) / (PI / 2);
         float rightness = Math.max(angle - PI, 0) / (PI / 2);

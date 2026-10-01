@@ -55,20 +55,21 @@ class SpeedLogicTest {
 
     @Test
     void sneakFollowsTheInputOrTheToggle() {
-        assertTrue(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, false, false));
-        assertFalse(SpeedLogic.wouldWantSneak(false, true, false, false, false, false, true, false, false));
-        assertTrue(SpeedLogic.wouldWantSneak(true, true, false, false, false, false, true, false, false));
-        assertTrue(SpeedLogic.wouldWantSneak(true, false, true, true, false, false, true, false, false));
-        assertFalse(SpeedLogic.wouldWantSneak(true, false, true, false, false, false, true, false, false));
+        assertTrue(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, false, false, false));
+        assertFalse(SpeedLogic.wouldWantSneak(false, true, false, false, false, false, true, false, false, false));
+        assertTrue(SpeedLogic.wouldWantSneak(true, true, false, false, false, false, true, false, false, false));
+        assertTrue(SpeedLogic.wouldWantSneak(true, false, true, true, false, false, true, false, false, false));
+        assertFalse(SpeedLogic.wouldWantSneak(true, false, true, false, false, false, true, false, false, false));
     }
 
     @Test
-    void crawlingGrabAndFlyingPreventSneaking() {
-        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, true, false, true, false, false));
-        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, true, true, false, false));
-        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, true, false));
-        assertTrue(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, false, true, false));
-        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, false, true));
+    void crawlingSlidingGrabAndFlyingPreventSneaking() {
+        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, true, false, true, false, false, false));
+        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, true, true, false, false, false));
+        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, true, false, false));
+        assertTrue(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, false, true, false, false));
+        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, false, true, false));
+        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, false, false, true));
     }
 
     @Test
@@ -87,20 +88,22 @@ class SpeedLogicTest {
     }
 
     @Test
-    void jumpFactorControlsTheAirAndHoldingJumpWhileSprinting() {
-        assertEquals(1, SpeedLogic.jumpFactor(true, false, true, true, 0.8f, 0.5f));
-        assertEquals(0.8f, SpeedLogic.jumpFactor(true, true, true, true, 0.8f, 0.5f));
-        assertEquals(1, SpeedLogic.jumpFactor(true, true, true, false, 0.8f, 0.5f));
-        assertEquals(1, SpeedLogic.jumpFactor(true, true, false, true, 0.8f, 0.5f));
-        assertEquals(0.5f, SpeedLogic.jumpFactor(false, true, true, true, 0.8f, 0.5f));
+    void jumpFactorControlsTheAirHeadJumpsAndHoldingJumpWhileSprinting() {
+        assertEquals(1, SpeedLogic.jumpFactor(true, false, true, true, 0.8f, 0.5f, false, 0.2f));
+        assertEquals(0.8f, SpeedLogic.jumpFactor(true, true, true, true, 0.8f, 0.5f, false, 0.2f));
+        assertEquals(1, SpeedLogic.jumpFactor(true, true, true, false, 0.8f, 0.5f, false, 0.2f));
+        assertEquals(1, SpeedLogic.jumpFactor(true, true, false, true, 0.8f, 0.5f, false, 0.2f));
+        assertEquals(0.5f, SpeedLogic.jumpFactor(false, true, true, true, 0.8f, 0.5f, false, 0.2f));
+        assertEquals(0.2f, SpeedLogic.jumpFactor(false, true, true, true, 0.8f, 0.5f, true, 0.2f));
     }
 
     @Test
-    void sprintNeedsTheKeyForwardAndNoRideOrSleep() {
-        assertTrue(SpeedLogic.wantSprint(true, true, true, false));
-        assertFalse(SpeedLogic.wantSprint(false, true, true, false));
-        assertFalse(SpeedLogic.wantSprint(true, true, false, false));
-        assertFalse(SpeedLogic.wantSprint(true, true, true, true));
+    void sprintNeedsTheKeyForwardAndNoSlideRideOrSleep() {
+        assertTrue(SpeedLogic.wantSprint(true, true, true, false, false));
+        assertFalse(SpeedLogic.wantSprint(false, true, true, false, false));
+        assertFalse(SpeedLogic.wantSprint(true, true, false, false, false));
+        assertFalse(SpeedLogic.wantSprint(true, true, true, false, true));
+        assertFalse(SpeedLogic.wantSprint(true, true, true, true, false));
     }
 
     @Test

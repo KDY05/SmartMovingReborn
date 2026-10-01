@@ -3,11 +3,19 @@ package io.github.kdy05.smartmovingreborn.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.kdy05.smartmovingreborn.logic.MovingController;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.EffectRenderingInventoryScreen;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 
@@ -16,6 +24,10 @@ public final class SmartMovingRender {
     private static final PoseCalculator POSE = new PoseCalculator();
     /** Models whose parts carry a Smart Moving pose, which vanilla's setupAnim does not fully overwrite. */
     private static final Set<HumanoidModel<?>> POSED = Collections.newSetFromMap(new WeakHashMap<>());
+    /** How far below a head jumping player the ground is looked for ({@code getOverGroundHeight(5)}). */
+    private static final double OVER_GROUND_RANGE = 5;
+    /** Each player's whole-body rotation as last drawn. */
+    private static final Map<Entity, OuterFade> OUTERS = new WeakHashMap<>();
 
     /** Set while the first person hand is drawn, which reuses the player model and must keep vanilla's pose. */
     private static boolean renderingHand;
@@ -31,10 +43,13 @@ public final class SmartMovingRender {
         return entity instanceof AbstractClientPlayer player ? MovingController.stateOf(player) : null;
     }
 
-    /** Whether {@code entity} is a crawling player (by the local logic for the own player). */
-    public static boolean isCrawling(Entity entity) {
+    /**
+     * Whether {@code entity} is a player crawling, sliding or head jumping (by the local logic for the own
+     * player), whose model lies down by itself.
+     */
+    private static boolean isLying(Entity entity) {
         MovingState state = stateOf(entity);
-        return state != null && state.crawling;
+        return state != null && state.lying();
     }
 
     /** Whether the player is in a side or back jump ({@code SmartMoving.isAngleJumping}). */
@@ -43,15 +58,73 @@ public final class SmartMovingRender {
     }
 
     /**
-     * {@code PlayerRenderer#render} HEAD. A side or back jumping player's body faces the view direction, like
-     * the original, so the legs can turn towards the jump.
+     * {@code PlayerRenderer#render} HEAD: the whole-body rotation (Smart Render's outer joint, kept in
+     * {@link OuterFade} for every frame). By default the body turns towards vanilla's body yaw, easing like
+     * the original's ({@code fadeRotateAngleY} is on for every pose). A sliding or head jumping body faces the
+     * direction it moves in ({@code currentHorizontalAngle}), the slide without easing; the head jump also
+     * tilts along its flight path, easing. The faded yaw replaces vanilla's only while drawing
+     * ({@link #afterRender}), since the original never stored it in the entity.
+     * <p>
+     * What the original did store ({@code rotatePlayer}): sliding, head jumping and side and back jumping set
+     * the body yaw to the view direction, from which vanilla turns the body on the next tick. A side or back
+     * jumping body so turns towards the view, and the legs turn towards the jump from there.
+     * <p>
+     * Not in the inventory screen, which sets its own rotations (the original skipped it the same way).
      */
-    public static void beforeRender(AbstractClientPlayer player) {
+    public static void beforeRender(AbstractClientPlayer player, float partialTicks) {
         MovingState state = stateOf(player);
-        if (state != null && !state.crawling && isAngleJumping(state)) {
-            player.yBodyRot = player.yHeadRot;
-            player.yBodyRotO = player.yHeadRotO;
+        if (state == null || isInventory(partialTicks)) {
+            return;
         }
+        OuterFade outer = OUTERS.computeIfAbsent(player, p -> new OuterFade());
+        float time = player.tickCount + partialTicks;
+        float horizontalAngle = horizontalAngle(player, outer);
+        if (state.headJumping) {
+            outer.update(Mth.PI / 2 - verticalAngle(player), true, horizontalAngle, true, time);
+        } else if (state.sliding) {
+            outer.update(Mth.PI / 2, false, horizontalAngle, false, time);
+        } else {
+            float bodyYaw = Mth.rotLerp(partialTicks, player.yBodyRotO, player.yBodyRot);
+            outer.update(0, false, bodyYaw * Mth.DEG_TO_RAD, true, time);
+            outer.viewOffset = Mth.wrapDegrees(player.getYRot() - bodyYaw) * Mth.DEG_TO_RAD;
+        }
+
+        outer.bodyRot = state.sliding || state.headJumping || isAngleJumping(state)
+                ? Mth.rotLerp(partialTicks, player.yRotO, player.getYRot()) : player.yBodyRot;
+        outer.bodyRotO = player.yBodyRotO;
+        player.yBodyRot = outer.yaw * Mth.RAD_TO_DEG;
+        player.yBodyRotO = player.yBodyRot;
+    }
+
+    /** {@code PlayerRenderer#render} TAIL: puts back the body yaw {@link #beforeRender} replaced for drawing. */
+    public static void afterRender(AbstractClientPlayer player) {
+        OuterFade outer = OUTERS.get(player);
+        if (outer == null || Float.isNaN(outer.bodyRot)) {
+            return;
+        }
+        player.yBodyRot = outer.bodyRot;
+        player.yBodyRotO = outer.bodyRotO;
+        outer.bodyRot = Float.NaN;
+    }
+
+    /** Whether the player is drawn in the inventory screen, which renders at a partial tick of exactly 1. */
+    private static boolean isInventory(float partialTicks) {
+        return partialTicks == 1 && Minecraft.getInstance().screen instanceof EffectRenderingInventoryScreen;
+    }
+
+    /**
+     * The direction of the last tick's horizontal movement as a yaw in radians, or the last one while not
+     * moving horizontally, or the view direction before any ({@code currentHorizontalAngle}).
+     */
+    private static float horizontalAngle(AbstractClientPlayer player, OuterFade outer) {
+        double dx = player.getX() - player.xo;
+        double dz = player.getZ() - player.zo;
+        if (dx != 0 || dz != 0) {
+            outer.horizontalAngle = (float) Mth.atan2(-dx, dz);
+        } else if (Float.isNaN(outer.horizontalAngle)) {
+            return player.getYRot() * Mth.DEG_TO_RAD;
+        }
+        return outer.horizontalAngle;
     }
 
     /**
@@ -75,22 +148,58 @@ public final class SmartMovingRender {
             POSE.reset(model);
             POSE.crawl(limbSwing, limbSwingAmount, netHeadYaw);
             POSE.applyTo(model);
+        } else if (state.sliding) {
+            POSE.reset(model);
+            POSE.slide(limbSwing, limbSwingAmount);
+            POSE.applyTo(model);
+        } else if (state.headJumping) {
+            OuterFade outer = OUTERS.get(entity);
+            POSE.reset(model);
+            POSE.headJump(outer == null ? Mth.PI / 2 - verticalAngle(entity) : outer.xRot, verticalAngle(entity),
+                    armLimit(entity));
+            POSE.applyTo(model);
         } else if (isAngleJumping(state)) {
             POSE.reset(model);
-            POSE.angleJump(model, state.angleJumpType);
+            OuterFade outer = OUTERS.get(entity);
+            POSE.angleJump(model, state.angleJumpType, outer == null ? 0 : outer.viewOffset);
         } else {
             return;
         }
         POSED.add(model);
     }
 
+    /** The angle of the last tick's movement above the horizontal ({@code currentVerticalAngle}). */
+    private static float verticalAngle(Entity entity) {
+        double dx = entity.getX() - entity.xo;
+        double dz = entity.getZ() - entity.zo;
+        float angle = (float) Math.atan((entity.getY() - entity.yo) / Math.sqrt(dx * dx + dz * dz));
+        return Float.isNaN(angle) ? Mth.PI / 2 : angle;
+    }
+
     /**
-     * {@code PlayerRenderer#setupRotations} TAIL. The original drew a crawling player one block lower than its
-     * position: its model lies down around the torso, not the feet. Vanilla's lying rotation is suppressed
-     * separately, since the model pose already lies down.
+     * How far a head jumping player's arms may close in: a fifth of the height above the ground
+     * ({@code getOverGroundHeight(5)}), but only while the block at the bottom of its box is solid. The original
+     * looked for the first block from there down, which in 1.7.10 is always that one block, air included, and
+     * then required a solid one; so in flight there is no limit, and it only applies on touching down.
+     */
+    private static float armLimit(Entity entity) {
+        Vec3 feet = entity.position();
+        if (!entity.level().getBlockState(BlockPos.containing(feet)).blocksMotion()) {
+            return 1;
+        }
+        HitResult hit = entity.level().clip(new ClipContext(feet, feet.subtract(0, OVER_GROUND_RANGE, 0),
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, entity));
+        double height = hit.getType() == HitResult.Type.MISS ? OVER_GROUND_RANGE : feet.y - hit.getLocation().y;
+        return (float) (height / OVER_GROUND_RANGE);
+    }
+
+    /**
+     * {@code PlayerRenderer#setupRotations} TAIL. The original drew a crawling, sliding or head jumping player
+     * one block lower than its position: its model lies down around the torso, not the feet. Vanilla's lying
+     * rotation stays off, since {@link MovingController#suppressSwimAmount} keeps its swim amount at 0.
      */
     public static void setupRotations(AbstractClientPlayer player, PoseStack poseStack) {
-        if (isCrawling(player)) {
+        if (isLying(player)) {
             poseStack.translate(0, -1, 0);
         }
     }

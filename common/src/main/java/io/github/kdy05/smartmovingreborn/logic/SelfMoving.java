@@ -1,5 +1,6 @@
 package io.github.kdy05.smartmovingreborn.logic;
 
+import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.input.Button;
 import io.github.kdy05.smartmovingreborn.logic.crawl.CrawlLogic;
@@ -7,6 +8,8 @@ import io.github.kdy05.smartmovingreborn.logic.jump.AngleJumpInput;
 import io.github.kdy05.smartmovingreborn.logic.jump.JumpEngine;
 import io.github.kdy05.smartmovingreborn.logic.jump.JumpSpeed;
 import io.github.kdy05.smartmovingreborn.logic.jump.JumpType;
+import io.github.kdy05.smartmovingreborn.logic.slide.SlideLogic;
+import io.github.kdy05.smartmovingreborn.render.SlideParticles;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
@@ -51,9 +54,21 @@ public final class SelfMoving {
     private boolean blockJumpTillButtonRelease;
     /** Ticks the jump key has been held for a charged jump. */
     private float jumpCharge;
+    /** Ticks the jump key has been held while charging a head jump. */
+    private float headJumpCharge;
     /** The horizontal motion when the jumps were decided, before this tick's movement. */
     private double jumpMotionX;
     private double jumpMotionZ;
+    private boolean grabPressed;
+    /** Gliding out of a slide: a head jump that keeps nearly all of its horizontal speed ({@code isAerodynamic}). */
+    private boolean aerodynamic;
+    /**
+     * The horizontal damping vanilla applies in this tick's {@code travel}, NaN before it moves the player on
+     * land or in the air; with the friction and ground state it came from.
+     */
+    private float vanillaDamping;
+    private float travelFriction;
+    private boolean travelOnGround;
 
     SelfMoving(Player player, MovingState state) {
         this.player = player;
@@ -63,6 +78,8 @@ public final class SelfMoving {
 
     void reset() {
         state.crawling = false;
+        state.sliding = false;
+        state.headJumping = false;
         state.slow = false;
         state.fast = false;
         state.angleJumpType = 0;
@@ -78,8 +95,12 @@ public final class SelfMoving {
         jumpAvoided = false;
         blockJumpTillButtonRelease = false;
         jumpCharge = 0;
+        headJumpCharge = 0;
         jumpMotionX = 0;
         jumpMotionZ = 0;
+        grabPressed = false;
+        aerodynamic = false;
+        vanillaDamping = Float.NaN;
         toggles.reset();
         angleJumps.reset();
     }
@@ -88,6 +109,7 @@ public final class SelfMoving {
     void updateActionState(Button sneak, Button grab, Button jump, Button sprint, Button left, Button right,
                            Button back, boolean forwardPressed, boolean jumpInput, SmartMovingClientConfig config) {
         this.jumpInput = jumpInput;
+        grabPressed = grab.pressed;
         jumpAvoided = false;
         boolean flying = player.getAbilities().flying;
         boolean smartFlying = flying && config.fly.get();
@@ -95,8 +117,9 @@ public final class SelfMoving {
         boolean onGround = player.onGround();
 
         boolean crawling = state.crawling;
-        boolean mustCrawl = CrawlLogic.mustCrawl(crawling, fits(Pose.STANDING), fits(Pose.CROUCHING), flying,
-                config.fly.get() || config.levitateSmall.get());
+        // Sliding and head jumping keep the small pose on their own.
+        boolean mustCrawl = !state.sliding && !state.headJumping && CrawlLogic.mustCrawl(crawling,
+                fits(Pose.STANDING), fits(Pose.CROUCHING), flying, config.fly.get() || config.levitateSmall.get());
         boolean inputContinueCrawl = CrawlLogic.inputContinueCrawl(config.crawlToggle.get(), toggles.isCrawlToggled(),
                 sneak.pressed, config.climbFree.get(), grab.pressed);
         boolean wantCrawl = CrawlLogic.wantCrawl(config.crawl.get(), crawling, flying, inputContinueCrawl,
@@ -108,12 +131,16 @@ public final class SelfMoving {
         wasCrawling = crawling;
         state.crawling = canCrawl && (wantCrawl || mustCrawl);
 
-        // Later moves (climbing, sliding, ...) are decided here, before sneaking and sprinting.
+        // Later moves (climbing, ...) are decided here, before sneaking and sprinting.
+
+        updateSlideAndHeadJump(sneak, grab, flying, onGround, config);
 
         boolean wouldWantSneak = SpeedLogic.wouldWantSneak(config.sneakToggle.get(), toggles.isSneakToggled(),
-                sneak.pressed, sneak.startPressed, wantCrawl, mustCrawl, config.crawl.get(), grab.pressed, smartFlying);
+                sneak.pressed, sneak.startPressed, wantCrawl, mustCrawl, config.crawl.get(), grab.pressed, smartFlying,
+                state.sliding || state.headJumping);
         boolean wantSneak = config.sneak.get() && wouldWantSneak;
-        boolean wantSprint = SpeedLogic.wantSprint(config.sprint.get(), sprint.pressed, forwardPressed, disabled);
+        boolean wantSprint = SpeedLogic.wantSprint(config.sprint.get(), sprint.pressed, forwardPressed, state.sliding,
+                disabled);
 
         if (!onGround && state.fast) {
             sprintJump = true;
@@ -129,7 +156,7 @@ public final class SelfMoving {
         if (groundSprinting && !wasGroundSprinting) {
             wasRunningWhenSprintStarted = player.isSprinting();
             player.setSprinting(SpeedLogic.standupSprintingOrRunning(state.fast, player.isSprinting(), onGround,
-                    false, state.crawling));
+                    state.sliding, state.crawling));
         } else if (wasGroundSprinting && !groundSprinting) {
             player.setSprinting(wasRunningWhenSprintStarted);
         }
@@ -143,7 +170,7 @@ public final class SelfMoving {
         boolean canAngleJump = !player.isSleeping() && onGround && !state.crawling;
         boolean canSideJump = config.angleJumpSide.get() && canAngleJump;
         boolean canBackJump = config.angleJumpBack.get() && canAngleJump && !forwardPressed
-                && !SpeedLogic.standupSprintingOrRunning(state.fast, player.isSprinting(), onGround, false,
+                && !SpeedLogic.standupSprintingOrRunning(state.fast, player.isSprinting(), onGround, state.sliding,
                 state.crawling);
         angleJumps.update(config.angleJumpDoubleClickTicks.get().intValue(), canSideJump && !right.pressed,
                 left.startPressed, canSideJump && !left.pressed, right.startPressed, canBackJump, back.startPressed);
@@ -156,19 +183,70 @@ public final class SelfMoving {
     }
 
     /**
+     * Sliding and head jumping ({@code updateEntityActionState} 2412-2464): a head jump ends on landing, where a
+     * slide or crawl goes on if standing does not fit or sneak and grab are held; a slide turns into a gliding
+     * head jump when it falls, starts on sneak while sprinting with grab held, and ends in crawling. The damage
+     * of landing head first is the server's ({@link MovingController#fallDamage}).
+     */
+    private void updateSlideAndHeadJump(Button sneak, Button grab, boolean flying, boolean onGround,
+                                        SmartMovingClientConfig config) {
+        Vec3 motion = player.getDeltaMovement();
+        boolean wasHeadJumping = state.headJumping;
+        state.headJumping = SlideLogic.continueHeadJump(state.headJumping, onGround, player.isSwimming() || flying,
+                player.isInWater() && motion.y < 0, player.isInLava());
+        if (!state.headJumping) {
+            aerodynamic = false;
+        }
+        if (wasHeadJumping && !state.headJumping && onGround
+                && (!fits(Pose.STANDING) || sneak.pressed && grab.pressed)) {
+            if (config.slide.get()) {
+                state.sliding = true;
+            } else {
+                toCrawling(config);
+            }
+        }
+
+        if (state.sliding && player.fallDistance > SlideLogic.SLIDE_FALL_DISTANCE) {
+            state.sliding = false;
+            state.headJumping = true;
+            aerodynamic = true;
+        }
+        if (SlideLogic.startSlide(config.slide.get(), grab.pressed, groundSprinting, isRunning(), onGround,
+                state.crawling, sneak.startPressed, player.isInWater())) {
+            tryJump(JumpType.SLIDE, Float.NaN, config);
+            state.sliding = true;
+            state.headJumping = false;
+            aerodynamic = false;
+        }
+        if (state.sliding && SlideLogic.stopSlide(sneak.pressed, motion.x * motion.x + motion.z * motion.z,
+                config.slideSpeedStopFactor.get())) {
+            state.sliding = false;
+            toCrawling(config);
+        }
+    }
+
+    /** Another move turns into crawling ({@code toCrawling}), as if it had been crawling already. */
+    private void toCrawling(SmartMovingClientConfig config) {
+        state.crawling = true;
+        wasCrawling = true;
+        toggles.toCrawling(config.crawlToggle.get());
+    }
+
+    /**
      * Adjusts the movement input vanilla has just set. Like the original, vanilla's input scaling (sneaking,
      * item usage) is dropped for the input's signs, and {@link #landSpeedFactor} applies the speed instead.
      */
     void applyInput(SmartMovingClientConfig config) {
         player.xxa = Math.signum(player.xxa);
         player.zza = Math.signum(player.zza);
-        player.setJumping(jumpInput && !state.crawling
+        player.setJumping(jumpInput && !state.crawling && !state.sliding
+                && (!config.headJump.get() || !grabPressed || !player.isSprinting())
                 && (!config.jumpCharge.get() || !wouldSneak || !player.onGround() || !standing)
                 && !blockJumpTillButtonRelease);
         if (isRunning() && !config.run.get()) {
             player.setSprinting(false);
         }
-        if (state.crawling) {
+        if (state.crawling || state.sliding) {
             player.setSprinting(false);
         }
     }
@@ -180,9 +258,22 @@ public final class SelfMoving {
 
     /**
      * Before vanilla moves the player ({@code handleJumping}): the normal jump vanilla asked for, charging and
-     * releasing a charged jump, and side and back jumps. Head jumps join in step 9, jumps in water in step 14.
+     * releasing a charged jump or head jump, and side and back jumps; then turns a slide by the strafe input.
+     * Jumps in water join in step 14.
      */
-    void handleJumping(SmartMovingClientConfig config) {
+    void beforeTravel(SmartMovingClientConfig config) {
+        vanillaDamping = Float.NaN;
+        handleJumping(config);
+        if (state.sliding && player.onGround()) {
+            Vec3 motion = player.getDeltaMovement();
+            double[] steered = SlideLogic.steer(motion.x, motion.z, player.xxa, config.slideControlAngle.get());
+            if (steered != null) {
+                player.setDeltaMovement(steered[0], motion.y, steered[1]);
+            }
+        }
+    }
+
+    private void handleJumping(SmartMovingClientConfig config) {
         if (blockJumpTillButtonRelease && !jumpInput) {
             blockJumpTillButtonRelease = false;
         }
@@ -214,7 +305,28 @@ public final class SelfMoving {
             }
         }
 
-        if (jump && !blockJumpTillButtonRelease && !jumpCharging) {
+        boolean headJumpCharging = false;
+        if (config.headJump.get()) {
+            headJumpCharging = grabPressed && (groundSprinting || sprintJump || isRunning() && onGround)
+                    && !state.crawling;
+            if (headJumpCharging) {
+                if (jumpInput) {
+                    headJumpCharge++;
+                } else {
+                    if (headJumpCharge > 0 && onGround) {
+                        tryJump(JumpType.HEAD, Float.NaN, config);
+                    }
+                    headJumpCharge = 0;
+                }
+            } else {
+                if (headJumpCharge > 0) {
+                    blockJumpTillButtonRelease = true;
+                }
+                headJumpCharge = 0;
+            }
+        }
+
+        if (jump && !blockJumpTillButtonRelease && !jumpCharging && !headJumpCharging) {
             tryJump(JumpType.UP, Float.NaN, config);
         }
 
@@ -245,12 +357,28 @@ public final class SelfMoving {
                 : Double.NaN;
 
         Vec3 motion = player.getDeltaMovement();
-        JumpEngine.Motion result = JumpEngine.motion(type, horizontalFactor, verticalFactor, chargeFactor, 1,
-                maxHorizontalMotion, jumpMotionX, jumpMotionZ, motion.x, motion.z, angle);
+        float headJumpFactor = type.head() ? JumpEngine.headJumpFactor(config, headJumpCharge) : 1;
+        JumpEngine.Motion result = JumpEngine.motion(type, horizontalFactor, verticalFactor, chargeFactor,
+                headJumpFactor, maxHorizontalMotion, jumpMotionX, jumpMotionZ, motion.x, motion.z, angle);
         boolean vertical = !Double.isNaN(result.y());
         player.setDeltaMovement(result.x(), vertical ? result.y() : motion.y, result.z());
         if (vertical) {
             sprintJump = state.fast;
+        }
+        if (type.head() && !state.headJumping) {
+            state.headJumping = true;
+            // The original raised the bottom of the box by a block and left the model where it was. Here the
+            // box shrinks from the feet and the model is drawn a block below it, so the player rises a block
+            // instead. Only where the standing box fits a block higher too: the server still has it until
+            // the new state arrives after this movement.
+            if (fits(Pose.STANDING, 1)) {
+                player.setPos(player.getX(), player.getY() + 1, player.getZ());
+                // Rendering interpolates from the previous position, which rises too so the model stays put,
+                // and the camera eases its eye height, which drops by as much so the view stays put.
+                player.yo++;
+                player.yOld++;
+                SmartMovingClient.offsetCameraEyeHeight(player, 1);
+            }
         }
         player.hasImpulse = true;
         player.setOnGround(false);
@@ -268,14 +396,58 @@ public final class SelfMoving {
         return jumpCharge;
     }
 
-    /** The multiplier on vanilla's walking speed on land and in the air (the original's {@code getSpeedFactor}). */
+    /** The ticks the jump key has been held for a head jump, for the charge bar. */
+    float headJumpCharge() {
+        return headJumpCharge;
+    }
+
+    /**
+     * Vanilla is about to move the player on land or in the air with {@code friction} from the block below,
+     * and will then damp the horizontal motion by {@code friction * 0.91} on the ground or 0.91 in the air.
+     */
+    void beforeFrictionMove(float friction) {
+        travelFriction = friction;
+        travelOnGround = player.onGround();
+        vanillaDamping = travelOnGround ? friction * 0.91f : 0.91f;
+    }
+
+    /**
+     * After vanilla's {@code travel}: replaces its horizontal damping with a slide's on the ground, or a gliding
+     * head jump's in the air ({@code landMotion} 757-786).
+     */
+    void afterTravel(SmartMovingClientConfig config) {
+        if (Float.isNaN(vanillaDamping)) {
+            return;
+        }
+        float damping = vanillaDamping;
+        if (state.sliding && travelOnGround) {
+            damping = SlideLogic.damping(travelFriction, config.slideGlideFactor.get());
+        } else if (aerodynamic && !travelOnGround) {
+            damping = SlideLogic.AERODYNAMIC_DAMPING;
+        }
+        if (damping != vanillaDamping) {
+            Vec3 motion = player.getDeltaMovement();
+            float scale = damping / vanillaDamping;
+            player.setDeltaMovement(motion.x * scale, motion.y, motion.z * scale);
+        }
+        vanillaDamping = Float.NaN;
+    }
+
+    /**
+     * The multiplier on vanilla's walking speed on land and in the air (the original's {@code getSpeedFactor}).
+     * A slide only glides, without walking.
+     */
     float landSpeedFactor(SmartMovingClientConfig config) {
+        if (state.sliding) {
+            return 0;
+        }
         return SpeedLogic.landSpeedFactor(config.speedFactor.get(), itemFactor(config),
                 state.crawling, config.crawlFactor.get(), state.slow, sneakFactor(config),
                 state.fast, config.sprintFactor.get(), config.run.get() && isRunning(), config.runFactor.get(),
                 player.isSprinting())
                 * SpeedLogic.jumpFactor(player.onGround(), jumpInput, state.fast, config.sprintJump.get(),
-                config.sprintJumpVerticalFactor.get(), config.jumpControlFactor.get());
+                config.sprintJumpVerticalFactor.get(), config.jumpControlFactor.get(), state.headJumping,
+                config.headJumpControlFactor.get());
     }
 
     /**
@@ -287,9 +459,16 @@ public final class SelfMoving {
         return player.isSprinting() ? speed / SpeedLogic.VANILLA_SPRINT_FACTOR : speed;
     }
 
-    /** At the end of the tick (the original's {@code afterOnUpdate}): the wall counter and the perspective. */
+    /**
+     * At the end of the tick (the original's {@code afterOnUpdate}): the wall counter, slide particles and the
+     * perspective.
+     */
     void afterTick(SmartMovingClientConfig config) {
         collidedHorizontallyTicks = player.horizontalCollision ? collidedHorizontallyTicks + 1 : 0;
+        if (state.sliding) {
+            Vec3 motion = player.getDeltaMovement();
+            SlideParticles.spawn(player, motion.x, motion.z, config);
+        }
 
         float movementSpeed = movementSpeed();
         float target = SpeedLogic.perspectiveSpeed(movementSpeed, state.fast, sprintJump, isRunning(),
@@ -335,7 +514,12 @@ public final class SelfMoving {
 
     /** Whether {@code pose} fits at the player's position, like vanilla's {@code canEnterPose}. */
     private boolean fits(Pose pose) {
+        return fits(pose, 0);
+    }
+
+    /** Whether {@code pose} fits {@code dy} blocks above the player's position. */
+    private boolean fits(Pose pose, double dy) {
         return player.level().noCollision(player,
-                player.getDimensions(pose).makeBoundingBox(player.position()).deflate(1.0E-7));
+                player.getDimensions(pose).makeBoundingBox(player.position().add(0, dy, 0)).deflate(1.0E-7));
     }
 }

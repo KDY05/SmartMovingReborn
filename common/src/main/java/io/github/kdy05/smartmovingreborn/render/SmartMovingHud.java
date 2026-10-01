@@ -10,7 +10,7 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * The game overlay ({@code SmartMovingRender.renderGuiIngame}): the jump charge bar above the health bar
- * ({@code move.gui.jump.charge.bar}). Head jump charges join in step 9, the exhaustion bar in step 17.
+ * ({@code move.gui.jump.charge.bar}), for charged jumps and head jumps. The exhaustion bar joins in step 17.
  */
 public final class SmartMovingHud {
     private static final ResourceLocation ICONS =
@@ -28,8 +28,12 @@ public final class SmartMovingHud {
                 || !minecraft.gameMode.canHurtPlayer() || !config.displayJumpChargeBar.get()) {
             return;
         }
-        float maximum = config.jumpChargeMaximum.get();
-        float charge = Math.min(MovingController.jumpCharge(), maximum);
+        float jumpMaximum = config.jumpChargeMaximum.get();
+        float jumpCharge = Math.min(MovingController.jumpCharge(), jumpMaximum);
+        float headJumpMaximum = config.headJumpChargeMaximum.get();
+        float headJumpCharge = Math.min(MovingController.headJumpCharge(), headJumpMaximum);
+        float maximum = jumpCharge > headJumpCharge ? jumpMaximum : headJumpMaximum;
+        float charge = Math.max(jumpCharge, headJumpCharge);
         if (charge <= 0) {
             return;
         }

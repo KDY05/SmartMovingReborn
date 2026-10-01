@@ -8,8 +8,11 @@ import io.github.kdy05.smartmovingreborn.logic.MovingController;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
+import io.github.kdy05.smartmovingreborn.render.SlideParticles;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.state.StatePacketCodec;
+import io.github.kdy05.smartmovingreborn.mixin.client.CameraAccessor;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -97,6 +100,12 @@ public final class SmartMovingClient {
         updateLocalState(minecraft, player);
         sendState(minecraft);
         OTHER_STATES.keySet().removeIf(id -> minecraft.level.getEntity(id) == null);
+        for (AbstractClientPlayer other : minecraft.level.players()) {
+            MovingState state = OTHER_STATES.get(other.getId());
+            if (state != null && state.sliding) {
+                SlideParticles.spawn(other, other.getX() - other.xo, other.getZ() - other.zo, config());
+            }
+        }
     }
 
     private static void startSession(ClientPacketListener connection) {
@@ -168,6 +177,20 @@ public final class SmartMovingClient {
     /** Whether the own player's current movement input jumps. */
     public static boolean isJumpPressed(Player player) {
         return ((LocalPlayer) player).input.jumping;
+    }
+
+    /**
+     * Lowers the camera's eased eye height by {@code dy} when following {@code player}, so that moving the
+     * player up by {@code dy} leaves the view where it was.
+     */
+    public static void offsetCameraEyeHeight(Player player, float dy) {
+        Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
+        if (camera.getEntity() != player) {
+            return;
+        }
+        CameraAccessor accessor = (CameraAccessor) camera;
+        accessor.smartmovingreborn$setEyeHeight(accessor.smartmovingreborn$getEyeHeight() - dy);
+        accessor.smartmovingreborn$setEyeHeightOld(accessor.smartmovingreborn$getEyeHeightOld() - dy);
     }
 
     /** The last state received for another player, or null. */

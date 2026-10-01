@@ -47,26 +47,32 @@ public final class SpeedLogic {
 
     /**
      * Whether the input asks for sneaking regardless of the switch ({@code wouldWantSneak}): held, or toggled
-     * (which a fresh press also starts), unless crawling, flying with Smart Moving or holding grab. Sliding,
-     * head jumping, swimming and diving join with those moves.
+     * (which a fresh press also starts), unless crawling, sliding, head jumping, flying with Smart Moving or
+     * holding grab. Swimming and diving join with those moves.
      */
     public static boolean wouldWantSneak(boolean toggleMode, boolean toggled, boolean sneakPressed,
                                          boolean sneakStarted, boolean wantCrawl, boolean mustCrawl,
-                                         boolean crawlEnabled, boolean grabPressed, boolean flying) {
+                                         boolean crawlEnabled, boolean grabPressed, boolean flying,
+                                         boolean slidingOrHeadJumping) {
         boolean continueInput = toggleMode ? toggled || sneakStarted : sneakPressed;
-        return !flying && continueInput && !wantCrawl && !mustCrawl && (!crawlEnabled || !grabPressed);
+        return !flying && !slidingOrHeadJumping && continueInput && !wantCrawl && !mustCrawl
+                && (!crawlEnabled || !grabPressed);
     }
 
     /**
      * The jump part of the speed factor ({@code landMotion} 715-738): holding jump while sprinting on the
-     * ground uses the sprint jump's vertical factor, and in the air {@code move.jump.control.factor} applies.
-     * Head jumps join in step 9.
+     * ground uses the sprint jump's vertical factor, and in the air {@code move.jump.control.factor} applies,
+     * or {@code move.jump.head.control.factor} while head jumping.
      *
      * @param onGround            on the ground and not jumping this tick
      * @param sprintJumpEnabled   whether sprint jumps are switched on
      */
     public static float jumpFactor(boolean onGround, boolean jumpInput, boolean fast, boolean sprintJumpEnabled,
-                                   float sprintJumpVerticalFactor, float jumpControlFactor) {
+                                   float sprintJumpVerticalFactor, float jumpControlFactor, boolean headJumping,
+                                   float headJumpControlFactor) {
+        if (headJumping) {
+            return headJumpControlFactor;
+        }
         if (onGround) {
             return jumpInput && fast && sprintJumpEnabled ? sprintJumpVerticalFactor : 1;
         }
@@ -84,12 +90,12 @@ public final class SpeedLogic {
     }
 
     /**
-     * Whether the player wants Smart Moving's sprint ({@code wantSprint}). The swimming, diving, climbing and
-     * flying cases join with those moves.
+     * Whether the player wants Smart Moving's sprint ({@code wantSprint}), never while sliding. The swimming,
+     * diving, climbing and flying cases join with those moves.
      */
     public static boolean wantSprint(boolean sprintEnabled, boolean sprintPressed, boolean forwardPressed,
-                                     boolean disabled) {
-        return sprintEnabled && sprintPressed && forwardPressed && !disabled;
+                                     boolean sliding, boolean disabled) {
+        return sprintEnabled && !sliding && sprintPressed && forwardPressed && !disabled;
     }
 
     /**

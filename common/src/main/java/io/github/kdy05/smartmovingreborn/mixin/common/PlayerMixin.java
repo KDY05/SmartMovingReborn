@@ -28,6 +28,11 @@ public abstract class PlayerMixin {
         }
     }
 
+    @Inject(method = "travel", at = @At("TAIL"))
+    private void smartmovingreborn$afterTravel(Vec3 input, CallbackInfo ci) {
+        MovingController.afterTravel(smartmovingreborn$self());
+    }
+
     @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
     private void smartmovingreborn$jumpFromGround(CallbackInfo ci) {
         if (MovingController.jumpFromGround(smartmovingreborn$self())) {
