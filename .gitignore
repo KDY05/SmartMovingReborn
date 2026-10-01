@@ -4,6 +4,7 @@ build/
 */build/
 run/
 */run/
+*/logs/
 *.iml
 out/
 .architectury-transformer/

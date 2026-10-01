@@ -5,8 +5,10 @@ import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
+import io.github.kdy05.smartmovingreborn.render.SmartMovingHud;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 
@@ -20,5 +22,6 @@ public final class SmartMovingRebornFabricClient implements ClientModInitializer
             client.execute(() -> SmartMovingClient.onStateRelay(message));
         });
         ClientTickEvents.END_CLIENT_TICK.register(SmartMovingClient::tick);
+        HudRenderCallback.EVENT.register((graphics, tickDelta) -> SmartMovingHud.render(graphics));
     }
 }

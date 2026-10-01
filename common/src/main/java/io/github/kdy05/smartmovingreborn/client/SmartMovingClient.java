@@ -31,6 +31,9 @@ public final class SmartMovingClient {
     public static final Button SNEAK = new Button();
     public static final Button JUMP = new Button();
     public static final Button SPRINT = new Button();
+    public static final Button LEFT = new Button();
+    public static final Button RIGHT = new Button();
+    public static final Button BACK = new Button();
     public static final MovingState LOCAL_STATE = new MovingState();
     private static final Map<Integer, MovingState> OTHER_STATES = new HashMap<>();
 
@@ -75,6 +78,9 @@ public final class SmartMovingClient {
         SNEAK.update(player.input.shiftKeyDown);
         JUMP.update(player.input.jumping);
         SPRINT.update(minecraft.options.keySprint.isDown());
+        LEFT.update(player.input.left);
+        RIGHT.update(player.input.right);
+        BACK.update(player.input.down);
 
         if (!serverPresent) {
             serverPresent = Network.isServerPresent();
@@ -157,6 +163,11 @@ public final class SmartMovingClient {
     /** Whether the own player's current movement input goes forward. */
     public static boolean isForwardPressed(Player player) {
         return ((LocalPlayer) player).input.forwardImpulse > 0;
+    }
+
+    /** Whether the own player's current movement input jumps. */
+    public static boolean isJumpPressed(Player player) {
+        return ((LocalPlayer) player).input.jumping;
     }
 
     /** The last state received for another player, or null. */

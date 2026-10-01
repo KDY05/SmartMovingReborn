@@ -27,13 +27,31 @@ public final class SmartMovingRender {
         SmartMovingRender.renderingHand = renderingHand;
     }
 
+    private static MovingState stateOf(Entity entity) {
+        return entity instanceof AbstractClientPlayer player ? MovingController.stateOf(player) : null;
+    }
+
     /** Whether {@code entity} is a crawling player (by the local logic for the own player). */
     public static boolean isCrawling(Entity entity) {
-        if (!(entity instanceof AbstractClientPlayer player)) {
-            return false;
-        }
-        MovingState state = MovingController.stateOf(player);
+        MovingState state = stateOf(entity);
         return state != null && state.crawling;
+    }
+
+    /** Whether the player is in a side or back jump ({@code SmartMoving.isAngleJumping}). */
+    private static boolean isAngleJumping(MovingState state) {
+        return state.angleJumpType > 1 && state.angleJumpType < 7;
+    }
+
+    /**
+     * {@code PlayerRenderer#render} HEAD. A side or back jumping player's body faces the view direction, like
+     * the original, so the legs can turn towards the jump.
+     */
+    public static void beforeRender(AbstractClientPlayer player) {
+        MovingState state = stateOf(player);
+        if (state != null && !state.crawling && isAngleJumping(state)) {
+            player.yBodyRot = player.yHeadRot;
+            player.yBodyRotO = player.yHeadRotO;
+        }
     }
 
     /**
@@ -49,12 +67,20 @@ public final class SmartMovingRender {
     /** {@code HumanoidModel#setupAnim} TAIL: replaces vanilla's pose with the Smart Moving one. */
     public static void setupAnim(HumanoidModel<?> model, Entity entity, float limbSwing, float limbSwingAmount,
                                  float netHeadYaw) {
-        if (renderingHand || !isCrawling(entity)) {
+        MovingState state = stateOf(entity);
+        if (renderingHand || state == null) {
             return;
         }
-        POSE.reset(model);
-        POSE.crawl(limbSwing, limbSwingAmount, netHeadYaw);
-        POSE.applyTo(model);
+        if (state.crawling) {
+            POSE.reset(model);
+            POSE.crawl(limbSwing, limbSwingAmount, netHeadYaw);
+            POSE.applyTo(model);
+        } else if (isAngleJumping(state)) {
+            POSE.reset(model);
+            POSE.angleJump(model, state.angleJumpType);
+        } else {
+            return;
+        }
         POSED.add(model);
     }
 

@@ -4,9 +4,11 @@ import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
+import io.github.kdy05.smartmovingreborn.render.SmartMovingHud;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -24,6 +26,7 @@ public final class SmartMovingRebornForgeClient {
                 SmartMovingClient.tick(Minecraft.getInstance());
             }
         });
+        MinecraftForge.EVENT_BUS.addListener((RenderGuiEvent.Post event) -> SmartMovingHud.render(event.getGuiGraphics()));
     }
 
     public static boolean isServerPresent() {

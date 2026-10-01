@@ -17,6 +17,14 @@ public abstract class PlayerRendererMixin {
     private static final String SETUP_ROTATIONS =
             "setupRotations(Lnet/minecraft/client/player/AbstractClientPlayer;Lcom/mojang/blaze3d/vertex/PoseStack;FFF)V";
 
+    @Inject(method = "render(Lnet/minecraft/client/player/AbstractClientPlayer;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
+            at = @At("HEAD"))
+    private void smartmovingreborn$render(AbstractClientPlayer player, float entityYaw, float partialTicks,
+                                          PoseStack poseStack, MultiBufferSource buffer, int packedLight,
+                                          CallbackInfo ci) {
+        SmartMovingRender.beforeRender(player);
+    }
+
     /** A crawling player's model lies down by itself, so vanilla's lying rotation (the swim amount) is skipped. */
     @Redirect(method = SETUP_ROTATIONS, at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/player/AbstractClientPlayer;getSwimAmount(F)F"))

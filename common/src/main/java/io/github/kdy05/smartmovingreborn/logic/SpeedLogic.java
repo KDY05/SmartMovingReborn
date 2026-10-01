@@ -58,12 +58,29 @@ public final class SpeedLogic {
     }
 
     /**
-     * What vanilla sees as the sneak key ({@code isSneaking}): slow on the ground, or crawling without
-     * {@code move.crawl.edge} so that vanilla keeps the player from falling off edges. Charged jumps join in
-     * step 8.
+     * The jump part of the speed factor ({@code landMotion} 715-738): holding jump while sprinting on the
+     * ground uses the sprint jump's vertical factor, and in the air {@code move.jump.control.factor} applies.
+     * Head jumps join in step 9.
+     *
+     * @param onGround            on the ground and not jumping this tick
+     * @param sprintJumpEnabled   whether sprint jumps are switched on
      */
-    public static boolean shiftKeyDown(boolean slow, boolean onGround, boolean crawling, boolean crawlOverEdge) {
-        return slow && onGround || !crawlOverEdge && crawling;
+    public static float jumpFactor(boolean onGround, boolean jumpInput, boolean fast, boolean sprintJumpEnabled,
+                                   float sprintJumpVerticalFactor, float jumpControlFactor) {
+        if (onGround) {
+            return jumpInput && fast && sprintJumpEnabled ? sprintJumpVerticalFactor : 1;
+        }
+        return jumpControlFactor;
+    }
+
+    /**
+     * What vanilla sees as the sneak key ({@code isSneaking}): slow on the ground, charging a jump with
+     * sneaking switched off (so that the player still crouches), or crawling without {@code move.crawl.edge}
+     * so that vanilla keeps the player from falling off edges.
+     */
+    public static boolean shiftKeyDown(boolean slow, boolean onGround, boolean sneakEnabled, boolean wouldSneak,
+                                       float jumpCharge, boolean crawling, boolean crawlOverEdge) {
+        return slow && onGround || !sneakEnabled && wouldSneak && jumpCharge > 0 || !crawlOverEdge && crawling;
     }
 
     /**

@@ -109,6 +109,38 @@ final class PoseCalculator {
         leftArm.yScale = 1 + (Mth.cos(distance - PI / 2) - 1) * 0.15f * walkFactor;
     }
 
+    /**
+     * Side and back jumps, from {@code SmartMovingModel.animateAngleJumping}: the legs turn towards the jump
+     * and spread, the arms lift to the side. It replaces only the walking swing of vanilla's pose, so the head
+     * and body stay vanilla's and only the limbs are written. The body already faces the view direction (see
+     * {@link SmartMovingRender#beforeRender}), so the pelvis needs no turn. Item holding, attack swing and arm
+     * bobbing on the arms are lost for the jump; the original kept them.
+     *
+     * @param angleJumpType the jump direction in eighths of a turn, 2 (left) to 6 (right)
+     */
+    void angleJump(HumanoidModel<?> model, int angleJumpType) {
+        float angle = angleJumpType * PI / 4;
+        float backness = 1 - Math.abs(angle - PI) / (PI / 2);
+        float leftness = -Math.min(angle - PI, 0) / (PI / 2);
+        float rightness = Math.max(angle - PI, 0) / (PI / 2);
+
+        leftLeg.order = RotationOrder.ZXY;
+        rightLeg.order = RotationOrder.ZXY;
+        leftLeg.xRot = PI / 16 * (1 + rightness);
+        rightLeg.xRot = PI / 16 * (1 + leftness);
+        leftLeg.yRot = -angle;
+        rightLeg.yRot = -angle;
+        leftLeg.zRot = PI / 16 * backness;
+        rightLeg.zRot = -PI / 16 * backness;
+        leftLeg.applyTo(model.leftLeg);
+        rightLeg.applyTo(model.rightLeg);
+
+        model.leftArm.zRot = -PI / 8 * rightness;
+        model.rightArm.zRot = PI / 8 * leftness;
+        model.leftArm.xRot = -PI / 4 * backness;
+        model.rightArm.xRot = -PI / 4 * backness;
+    }
+
     /** 0 at {@code x0}, 1 at {@code x1}, linear and clamped in between (the original's {@code Factor}). */
     private static float factor(float x, float x0, float x1) {
         if (x0 > x1) {

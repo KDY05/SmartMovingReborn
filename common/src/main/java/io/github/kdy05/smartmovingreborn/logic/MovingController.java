@@ -73,7 +73,8 @@ public final class MovingController {
             return false;
         }
         self.updateActionState(SmartMovingClient.SNEAK, SmartMovingClient.GRAB, SmartMovingClient.JUMP,
-                SmartMovingClient.SPRINT, SmartMovingClient.isForwardPressed(player),
+                SmartMovingClient.SPRINT, SmartMovingClient.LEFT, SmartMovingClient.RIGHT, SmartMovingClient.BACK,
+                SmartMovingClient.isForwardPressed(player), SmartMovingClient.isJumpPressed(player),
                 SmartMovingReborn.CLIENT_CONFIG);
         return false;
     }
@@ -117,8 +118,12 @@ public final class MovingController {
         if (!isActiveSelf(player) || player.isPassenger()) {
             return null;
         }
-        return SpeedLogic.shiftKeyDown(self.state.slow, player.onGround(), self.state.crawling,
-                SmartMovingReborn.CLIENT_CONFIG.crawlOverEdge.get());
+        return self.shiftKeyDown(SmartMovingReborn.CLIENT_CONFIG);
+    }
+
+    /** The own player's jump charge for the charge bar, 0 while Smart Moving is inactive. */
+    public static float jumpCharge() {
+        return self != null && SmartMovingClient.isActive() ? self.jumpCharge() : 0;
     }
 
     /**
@@ -151,20 +156,25 @@ public final class MovingController {
         return null;
     }
 
-    /** Replaces {@code Player#travel} when true (original {@code moveEntityWithHeading}). */
+    /** Replaces {@code Player#travel} when true (original {@code moveEntityWithHeading}). Jumps first. */
     public static boolean travel(Player player, Vec3 input) {
         if (!isActiveSelf(player)) {
             return false;
         }
+        self.handleJumping(SmartMovingReborn.CLIENT_CONFIG);
         return false;
     }
 
-    /** Replaces {@code Player#jumpFromGround} when true (original {@code jump}). */
+    /**
+     * Replaces {@code Player#jumpFromGround} when true (original {@code jump}): Smart Moving jumps instead in
+     * {@link #travel}. Jumps in water or lava stay vanilla's until swimming is ported.
+     */
     public static boolean jumpFromGround(Player player) {
-        if (!isActiveSelf(player)) {
+        if (!isActiveSelf(player) || player.isInWater() || player.isInLava()) {
             return false;
         }
-        return false;
+        self.avoidJump();
+        return true;
     }
 
     /**

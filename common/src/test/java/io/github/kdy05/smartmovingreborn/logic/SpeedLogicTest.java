@@ -73,10 +73,26 @@ class SpeedLogicTest {
 
     @Test
     void vanillaSneaksOnlyOnTheGroundOrToStopAtEdges() {
-        assertTrue(SpeedLogic.shiftKeyDown(true, true, false, true));
-        assertFalse(SpeedLogic.shiftKeyDown(true, false, false, true));
-        assertTrue(SpeedLogic.shiftKeyDown(false, false, true, false));
-        assertFalse(SpeedLogic.shiftKeyDown(false, true, true, true));
+        assertTrue(SpeedLogic.shiftKeyDown(true, true, true, true, 0, false, true));
+        assertFalse(SpeedLogic.shiftKeyDown(true, false, true, true, 0, false, true));
+        assertTrue(SpeedLogic.shiftKeyDown(false, false, true, false, 0, true, false));
+        assertFalse(SpeedLogic.shiftKeyDown(false, true, true, false, 0, true, true));
+    }
+
+    @Test
+    void chargingAJumpCrouchesEvenWithSneakingSwitchedOff() {
+        assertTrue(SpeedLogic.shiftKeyDown(false, true, false, true, 1, false, true));
+        assertFalse(SpeedLogic.shiftKeyDown(false, true, false, true, 0, false, true));
+        assertFalse(SpeedLogic.shiftKeyDown(false, true, true, true, 1, false, true));
+    }
+
+    @Test
+    void jumpFactorControlsTheAirAndHoldingJumpWhileSprinting() {
+        assertEquals(1, SpeedLogic.jumpFactor(true, false, true, true, 0.8f, 0.5f));
+        assertEquals(0.8f, SpeedLogic.jumpFactor(true, true, true, true, 0.8f, 0.5f));
+        assertEquals(1, SpeedLogic.jumpFactor(true, true, true, false, 0.8f, 0.5f));
+        assertEquals(1, SpeedLogic.jumpFactor(true, true, false, true, 0.8f, 0.5f));
+        assertEquals(0.5f, SpeedLogic.jumpFactor(false, true, true, true, 0.8f, 0.5f));
     }
 
     @Test

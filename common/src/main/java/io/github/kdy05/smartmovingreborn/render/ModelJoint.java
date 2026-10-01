@@ -75,7 +75,7 @@ final class ModelJoint {
     void applyTo(ModelPart part) {
         Matrix4f matrix = world();
         Vector3f translation = matrix.getTranslation(new Vector3f());
-        Vector3f angles = matrix.normalize3x3().getEulerAnglesZYX(new Vector3f());
+        Vector3f angles = eulerAnglesZYX(matrix.normalize3x3());
         part.x = translation.x * 16;
         part.y = translation.y * 16;
         part.z = translation.z * 16;
@@ -85,5 +85,21 @@ final class ModelJoint {
         part.xScale = xScale;
         part.yScale = yScale;
         part.zScale = zScale;
+    }
+
+    /**
+     * The angles {@code x, y, z} with {@code rotation = Rz(z) Ry(y) Rx(x)}, as {@link ModelPart} applies them.
+     * Unlike JOML's {@code getEulerAnglesZYX}, this handles a Y angle of ±90° (e.g. a leg turned sideways in a
+     * side jump), where X and Z turn about the same axis: Z is then 0 and X takes the whole turn. JOML takes
+     * both from near-zero entries there, so the turn could vanish.
+     */
+    static Vector3f eulerAnglesZYX(Matrix4f rotation) {
+        float sinY = -rotation.m02();
+        if (Math.abs(sinY) < 1 - 1.0E-6f) {
+            return new Vector3f((float) Math.atan2(rotation.m12(), rotation.m22()), (float) Math.asin(sinY),
+                    (float) Math.atan2(rotation.m01(), rotation.m00()));
+        }
+        return new Vector3f((float) Math.atan2(-rotation.m21(), rotation.m11()),
+                Math.copySign((float) Math.PI / 2, sinY), 0);
     }
 }
