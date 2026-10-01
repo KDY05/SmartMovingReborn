@@ -2,8 +2,6 @@ package io.github.kdy05.smartmovingreborn.logic;
 
 import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
-import io.github.kdy05.smartmovingreborn.config.SmartMovingConfig;
-import io.github.kdy05.smartmovingreborn.logic.slide.SlideLogic;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.ServerNetworkHandler;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
@@ -69,8 +67,14 @@ public final class MovingController {
         self.afterTick(SmartMovingReborn.CLIENT_CONFIG);
     }
 
-    /** Replaces {@code LocalPlayer#serverAiStep} when true (original {@code updateEntityActionState}). */
+    /**
+     * Replaces {@code LocalPlayer#serverAiStep} when true (original {@code updateEntityActionState}). The
+     * buttons are updated first, also while inactive so that they never carry a stale press.
+     */
     public static boolean serverAiStep(Player player) {
+        if (self != null && player == self.player) {
+            SmartMovingClient.updateButtons(player);
+        }
         if (!isActiveSelf(player)) {
             return false;
         }
@@ -262,24 +266,6 @@ public final class MovingController {
     }
 
     // Server
-
-    /**
-     * {@code LivingEntity#calculateFallDamage} RETURN on the server: a player landing head first takes the head
-     * jump's fall damage ({@code handleCrash}) instead of vanilla's. The client's last state still says head
-     * jumping, since it is sent after the movement packet that lands.
-     */
-    public static int fallDamage(Entity entity, float fallDistance, float multiplier, int damage) {
-        if (!(entity instanceof ServerPlayer player) || !isActiveOnServer(player)) {
-            return damage;
-        }
-        MovingState state = ServerNetworkHandler.getState(player);
-        if (state == null || !state.headJumping) {
-            return damage;
-        }
-        SmartMovingConfig config = SmartMovingReborn.SERVER_CONFIG;
-        return SlideLogic.headFallDamage(fallDistance, multiplier, config.headFallDamageStartDistance.get(),
-                config.headFallDamageFactor.get());
-    }
 
     /** {@code ServerGamePacketListenerImpl#handleMovePlayer}, once on the server thread (the original's core mod). */
     public static void beforeHandleMovePlayer(ServerPlayer player) {

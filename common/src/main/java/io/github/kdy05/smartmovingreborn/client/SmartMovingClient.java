@@ -5,17 +5,18 @@ import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.input.Button;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
 import io.github.kdy05.smartmovingreborn.logic.MovingController;
+import io.github.kdy05.smartmovingreborn.mixin.client.CameraAccessor;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
 import io.github.kdy05.smartmovingreborn.render.SlideParticles;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.state.StatePacketCodec;
-import io.github.kdy05.smartmovingreborn.mixin.client.CameraAccessor;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.Input;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
@@ -77,14 +78,6 @@ public final class SmartMovingClient {
             config().enabled = !config().enabled;
             chat(player, config().enabled ? "enabled" : "disabled");
         }
-        GRAB.update(KeyBindings.GRAB.isDown());
-        SNEAK.update(player.input.shiftKeyDown);
-        JUMP.update(player.input.jumping);
-        SPRINT.update(minecraft.options.keySprint.isDown());
-        LEFT.update(player.input.left);
-        RIGHT.update(player.input.right);
-        BACK.update(player.input.down);
-
         if (!serverPresent) {
             serverPresent = Network.isServerPresent();
             if (!serverPresent) {
@@ -160,6 +153,23 @@ public final class SmartMovingClient {
         }
     }
 
+    /**
+     * Sends the state right away, in the middle of the own player's tick, when it changed. The movement packet
+     * of this tick follows it, so the server already applies the new pose to that movement.
+     */
+    public static void sendStateNow(Player player) {
+        if (!isActive()) {
+            return;
+        }
+        LOCAL_STATE.small = player.getBbHeight() < 1.0f;
+        long state = StatePacketCodec.encode(LOCAL_STATE);
+        if (!stateSent || state != sentState) {
+            Network.sendToServer(new StateMessage(state));
+            sentState = state;
+            stateSent = true;
+        }
+    }
+
     /** Runs on the client thread. */
     public static void onStateRelay(StateRelayMessage message) {
         Minecraft minecraft = Minecraft.getInstance();
@@ -167,6 +177,22 @@ public final class SmartMovingClient {
             return;
         }
         StatePacketCodec.decode(message.state(), OTHER_STATES.computeIfAbsent(message.entityId(), id -> new MovingState()));
+    }
+
+    /**
+     * Updates the buttons from this tick's input, at the start of the own player's action update like the
+     * original ({@code updateEntityActionState}), so that a press counts in the tick it happens. Vanilla has
+     * read the movement input just before.
+     */
+    public static void updateButtons(Player player) {
+        Input input = ((LocalPlayer) player).input;
+        GRAB.update(KeyBindings.GRAB.isDown());
+        SNEAK.update(input.shiftKeyDown);
+        JUMP.update(input.jumping);
+        SPRINT.update(Minecraft.getInstance().options.keySprint.isDown());
+        LEFT.update(input.left);
+        RIGHT.update(input.right);
+        BACK.update(input.down);
     }
 
     /** Whether the own player's current movement input goes forward. */

@@ -61,12 +61,4 @@ class SlideLogicTest {
         assertNull(SlideLogic.steer(0.1, 0.2, 1, 0));
         assertNull(SlideLogic.steer(0, 0, 1, 5));
     }
-
-    @Test
-    void headFallDamageStartsEarlierAndScales() {
-        assertEquals(0, SlideLogic.headFallDamage(2, 1, 2, 2));
-        assertEquals(1, SlideLogic.headFallDamage(2.4f, 1, 2, 2));
-        assertEquals(6, SlideLogic.headFallDamage(5, 1, 2, 2));
-        assertEquals(2, SlideLogic.headFallDamage(5, 0.2f, 2, 2));
-    }
 }

@@ -15,6 +15,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
@@ -62,6 +63,8 @@ public final class SelfMoving {
     private boolean grabPressed;
     /** Gliding out of a slide: a head jump that keeps nearly all of its horizontal speed ({@code isAerodynamic}). */
     private boolean aerodynamic;
+    /** The head jump lifted the player a block, standing in for the original's raised box ({@link #tryJump}). */
+    private boolean lifted;
     /**
      * The horizontal damping vanilla applies in this tick's {@code travel}, NaN before it moves the player on
      * land or in the air; with the friction and ground state it came from.
@@ -100,6 +103,7 @@ public final class SelfMoving {
         jumpMotionZ = 0;
         grabPressed = false;
         aerodynamic = false;
+        lifted = false;
         vanillaDamping = Float.NaN;
         toggles.reset();
         angleJumps.reset();
@@ -185,8 +189,8 @@ public final class SelfMoving {
     /**
      * Sliding and head jumping ({@code updateEntityActionState} 2412-2464): a head jump ends on landing, where a
      * slide or crawl goes on if standing does not fit or sneak and grab are held; a slide turns into a gliding
-     * head jump when it falls, starts on sneak while sprinting with grab held, and ends in crawling. The damage
-     * of landing head first is the server's ({@link MovingController#fallDamage}).
+     * head jump when it falls, starts on sneak while sprinting with grab held, and ends in crawling. Landing head
+     * first only takes vanilla's fall damage (see {@link SlideLogic}).
      */
     private void updateSlideAndHeadJump(Button sneak, Button grab, boolean flying, boolean onGround,
                                         SmartMovingClientConfig config) {
@@ -196,6 +200,7 @@ public final class SelfMoving {
                 player.isInWater() && motion.y < 0, player.isInLava());
         if (!state.headJumping) {
             aerodynamic = false;
+            lifted = false;
         }
         if (wasHeadJumping && !state.headJumping && onGround
                 && (!fits(Pose.STANDING) || sneak.pressed && grab.pressed)) {
@@ -213,6 +218,7 @@ public final class SelfMoving {
         }
         if (SlideLogic.startSlide(config.slide.get(), grab.pressed, groundSprinting, isRunning(), onGround,
                 state.crawling, sneak.startPressed, player.isInWater())) {
+            lowerForSlide();
             tryJump(JumpType.SLIDE, Float.NaN, config);
             state.sliding = true;
             state.headJumping = false;
@@ -222,6 +228,23 @@ public final class SelfMoving {
                 config.slideSpeedStopFactor.get())) {
             state.sliding = false;
             toCrawling(config);
+        }
+    }
+
+    /**
+     * The original's {@code setHeightOffset(-1)} and {@code move(0, -1, 0)} when a slide starts: the bottom of the
+     * box rises a block, then the player moves a block down. On the ground that changes nothing. In the air it
+     * adds a block of fall distance, so that the slide turns into a gliding head jump on the next tick. A head
+     * jump's box was raised already, so there the player really moves down, back to the model's feet; vanilla's
+     * move handles collisions and the fall distance. The original ignored cobwebs for that move; here a cobweb
+     * still slows it.
+     */
+    private void lowerForSlide() {
+        if (lifted) {
+            player.move(MoverType.SELF, new Vec3(0, -1, 0));
+            lifted = false;
+        } else if (!player.onGround()) {
+            player.fallDistance += 1;
         }
     }
 
@@ -369,9 +392,13 @@ public final class SelfMoving {
             state.headJumping = true;
             // The original raised the bottom of the box by a block and left the model where it was. Here the
             // box shrinks from the feet and the model is drawn a block below it, so the player rises a block
-            // instead. Only where the standing box fits a block higher too: the server still has it until
-            // the new state arrives after this movement.
-            if (fits(Pose.STANDING, 1)) {
+            // instead. The small pose applies at once, not at the end of the tick, and the server learns of it
+            // before this tick's movement, so neither moves a standing box a block up. The small box a block
+            // up lies within the standing one, so it fits wherever the player stood, like the original's.
+            player.setPose(Pose.SWIMMING);
+            SmartMovingClient.sendStateNow(player);
+            if (fits(Pose.SWIMMING, 1)) {
+                lifted = true;
                 player.setPos(player.getX(), player.getY() + 1, player.getZ());
                 // Rendering interpolates from the previous position, which rises too so the model stays put,
                 // and the camera eases its eye height, which drops by as much so the view stays put.

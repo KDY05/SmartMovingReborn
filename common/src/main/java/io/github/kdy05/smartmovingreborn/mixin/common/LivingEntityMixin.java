@@ -38,11 +38,4 @@ public abstract class LivingEntityMixin {
         cir.setReturnValue(MovingController.frictionInfluencedSpeed((Entity) (Object) this, friction,
                 cir.getReturnValueF()));
     }
-
-    @Inject(method = "calculateFallDamage", at = @At("RETURN"), cancellable = true)
-    private void smartmovingreborn$calculateFallDamage(float fallDistance, float multiplier,
-                                                       CallbackInfoReturnable<Integer> cir) {
-        cir.setReturnValue(MovingController.fallDamage((Entity) (Object) this, fallDistance, multiplier,
-                cir.getReturnValueI()));
-    }
 }
