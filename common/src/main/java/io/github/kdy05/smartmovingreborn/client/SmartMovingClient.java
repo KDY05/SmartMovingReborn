@@ -208,6 +208,11 @@ public final class SmartMovingClient {
         return ((LocalPlayer) player).input.forwardImpulse > 0;
     }
 
+    /** Whether a screen takes the input, which keeps a climber hanging on. */
+    public static boolean isInputBlocked() {
+        return Minecraft.getInstance().screen != null;
+    }
+
     /** Whether the own player's current movement input jumps. */
     public static boolean isJumpPressed(Player player) {
         return ((LocalPlayer) player).input.jumping;

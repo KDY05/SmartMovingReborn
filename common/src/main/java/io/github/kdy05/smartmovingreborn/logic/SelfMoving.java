@@ -95,7 +95,7 @@ public final class SelfMoving {
     SelfMoving(Player player, MovingState state) {
         this.player = player;
         this.state = state;
-        this.climbing = new SelfClimbing(player, state);
+        this.climbing = new SelfClimbing(player, state, this::climbJump);
         reset();
     }
 
@@ -205,6 +205,7 @@ public final class SelfMoving {
         wouldSneak = wouldWantSneak && !wantSprint && !state.climbing;
         boolean wasSlow = state.slow;
         state.slow = wantSneak && wouldSneak;
+        climbing.updateHolding(sneak.pressed, toggles.isCrawlToggled(), SmartMovingClient.isInputBlocked());
         Vec3 motion = player.getDeltaMovement();
         standing = motion.x * motion.x + motion.z * motion.z < STANDING_SPEED_SQUARE;
 
@@ -395,7 +396,8 @@ public final class SelfMoving {
             }
         }
 
-        if (jump && !blockJumpTillButtonRelease && !jumpCharging && !headJumpCharging) {
+        boolean vineClimbing = state.handsVineClimbing || state.feetVineClimbing;
+        if (jump && !blockJumpTillButtonRelease && !jumpCharging && !headJumpCharging && !vineClimbing) {
             tryJump(JumpType.UP, Float.NaN, config);
         }
 
@@ -455,6 +457,23 @@ public final class SelfMoving {
         }
         player.hasImpulse = true;
         player.setOnGround(false);
+        return true;
+    }
+
+    /**
+     * Jumps off a climbing hold. A jump back turns the view around to its direction, keeps up wall jumping
+     * unless it is a head jump, and turns the body like the original's {@code onStartClimbBackJump}.
+     */
+    private boolean climbJump(JumpType type, float angle, SmartMovingClientConfig config) {
+        if (!tryJump(type, angle, config)) {
+            return false;
+        }
+        if (!Float.isNaN(angle)) {
+            wallJumps.jumped(state.headJumping);
+            player.setYRot(angle);
+            state.climbBackJumping = true;
+            SmartMovingRender.startClimbBackJump(player, state.headJumping);
+        }
         return true;
     }
 

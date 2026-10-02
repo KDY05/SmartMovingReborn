@@ -99,6 +99,17 @@ class ClimbLogicTest {
     }
 
     @Test
+    void grabTurnsTheBackJumpIntoAHeadJump() {
+        assertEquals(9, ClimbLogic.backJumpType(true, true, true));
+        assertEquals(10, ClimbLogic.backJumpType(false, true, true));
+        assertEquals(7, ClimbLogic.backJumpType(true, true, false));
+        assertEquals(8, ClimbLogic.backJumpType(false, true, false));
+        // move.jump.climb.back.head.on.grab off: the other way round.
+        assertEquals(7, ClimbLogic.backJumpType(true, false, true));
+        assertEquals(9, ClimbLogic.backJumpType(true, false, false));
+    }
+
+    @Test
     void baseClimbingModes() {
         assertEquals(0.2, ClimbLogic.simpleSpeed(true, false));
         assertEquals(0.1, ClimbLogic.simpleSpeed(false, true));

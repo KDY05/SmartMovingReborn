@@ -6,6 +6,7 @@ import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingConfig;
 import io.github.kdy05.smartmovingreborn.input.Button;
 import io.github.kdy05.smartmovingreborn.logic.climb.ClimbLogic;
+import io.github.kdy05.smartmovingreborn.logic.jump.JumpType;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.world.ClimbGap;
 import io.github.kdy05.smartmovingreborn.world.ClimbOrientation;
@@ -37,14 +38,22 @@ import java.util.Set;
  * vanilla's climbing in every mode.
  */
 final class SelfClimbing {
+    /** Jumps off a hold; {@code angle} is the direction (yaw) of jumps back, NaN for jumps up. */
+    interface Jumper {
+        boolean jump(JumpType type, float angle, SmartMovingClientConfig config);
+    }
+
     private final Player player;
     private final MovingState state;
+    private final Jumper jumper;
 
     boolean wantClimbUp;
     boolean wantClimbDown;
     /** Grab was pressed to crawl against a wall, not to climb it. */
     private boolean wantCrawlNotClimb;
-    /** Hanging on without climbing ({@code isClimbHolding}); set from step 12-2. */
+    private boolean wantClimb;
+    private boolean jumpStarted;
+    /** Hanging on without climbing ({@code isClimbHolding}). */
     boolean holding;
     /** Climbing into a gap with a raised box ({@code isClimbCrawling}); set from step 12-3. */
     boolean climbCrawling;
@@ -66,9 +75,10 @@ final class SelfClimbing {
     private float distanceClimbed;
     private int nextClimbDistance;
 
-    SelfClimbing(Player player, MovingState state) {
+    SelfClimbing(Player player, MovingState state, Jumper jumper) {
         this.player = player;
         this.state = state;
+        this.jumper = jumper;
     }
 
     void reset() {
@@ -76,6 +86,8 @@ final class SelfClimbing {
         wantClimbUp = false;
         wantClimbDown = false;
         wantCrawlNotClimb = false;
+        wantClimb = false;
+        jumpStarted = false;
         holding = false;
         handsEdge = null;
         feetEdge = null;
@@ -127,7 +139,8 @@ final class SelfClimbing {
                 && !state.headJumping
                 && !wantCrawlNotClimb
                 && !disabled;
-        boolean wantClimb = freeClimbing(config) && wouldWantClimb;
+        wantClimb = freeClimbing(config) && wouldWantClimb;
+        jumpStarted = jump.startPressed;
         if (!wantClimb || player.verticalCollision) {
             state.climbJumping = false;
         }
@@ -139,6 +152,17 @@ final class SelfClimbing {
                 || vineClimbing && jump.pressed && (!sneak.pressed || !facedToSolidVine)
                 && (!state.crawling || player.horizontalCollision) && (!state.sliding || player.horizontalCollision);
         wantClimbDown = wantClimb && !forward && !wantCrawl;
+    }
+
+    /**
+     * Whether the player hangs on ({@code isClimbHolding}, {@code updateEntityActionState} 2566-2570): while
+     * climbing, with sneak (or the crawl toggle) held, or while a screen takes the input.
+     */
+    void updateHolding(boolean sneakPressed, boolean crawlToggled, boolean inputBlocked) {
+        boolean wantHolding = holding && sneakPressed
+                || state.climbing && inputBlocked
+                || wantClimb && !player.isSwimming() && !state.crawling && (sneakPressed || crawlToggled);
+        holding = wantHolding && state.climbing;
     }
 
     // Ladders and vines
@@ -259,6 +283,10 @@ final class SelfClimbing {
         handled = true;
         Vec3 motion = player.getDeltaMovement();
         double y = handleClimbing(motion.y, grabPressed, fast, speedFactor, config);
+        Vec3 jumped = player.getDeltaMovement();
+        if (jumped != motion) {
+            return jumped;
+        }
         if (!onLadder && !onVine && !state.climbing && player.onClimbable()) {
             return vanilla;
         }
@@ -366,10 +394,23 @@ final class SelfClimbing {
         boolean feetOnBed = feetGap.block != null && feetGap.block.getBlock() instanceof BedBlock;
         ClimbLogic.Decision decision = ClimbLogic.decide(hands, feet, wantClimbUp, wantClimbDown, climbGap,
                 climbCrawlGap, player.onGround(), feetOnBed, holding);
-        if (decision.climbing()) {
+        boolean jumpedUp = false;
+        if (decision.jumpType() != 0 && jumpStarted) {
+            JumpType type = decision.jumpType() == 5 ? JumpType.CLIMB_UP : JumpType.CLIMB_UP_HANDS_ONLY;
+            jumpedUp = jumper.jump(type, Float.NaN, config);
+            state.climbJumping = jumpedUp;
+        }
+        if (decision.climbing() && !jumpedUp) {
             motionY = setClimbSpeed(decision.speed(), motionY, fast, speedFactor, config);
             state.handsClimbType = decision.handsType();
             state.feetClimbType = decision.feetType();
+        }
+        if (wantClimbDown && holding && jumpStarted) {
+            int type = ClimbLogic.backJumpType(feet != FeetClimbing.NONE, config.climbJumpBackHeadOnGrab.get(),
+                    grabPressed);
+            if (jumper.jump(BACK_JUMPS[type - 7], player.getYRot() + 180, config)) {
+                state.climbing = false;
+            }
         }
         if (state.climbing) {
             // The original's landing damage never reached the server, which clears the fall while climbing.
@@ -381,6 +422,10 @@ final class SelfClimbing {
         feetEdgeMeta = feetGap.meta;
         return motionY;
     }
+
+    /** The climb back jumps by the original's type numbers 7 to 10. */
+    private static final JumpType[] BACK_JUMPS = {JumpType.CLIMB_BACK_UP, JumpType.CLIMB_BACK_UP_HANDS_ONLY,
+            JumpType.CLIMB_BACK_HEAD, JumpType.CLIMB_BACK_HEAD_HANDS_ONLY};
 
     /** {@code setOnlyShouldClimbSpeed}: climbs at {@code speed} unless already moving up faster. */
     private double setClimbSpeed(double speed, double motionY, boolean fast, float speedFactor,

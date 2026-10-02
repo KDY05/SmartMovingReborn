@@ -108,6 +108,17 @@ public final class SmartMovingRender {
         }
     }
 
+    /**
+     * The own player jumped back off a climbing hold ({@code onStartClimbBackJump}): the body starts a quarter
+     * turn round, or a half turn for a head jump, and eases on from there.
+     */
+    public static void startClimbBackJump(Entity player, boolean head) {
+        OuterFade outer = OUTERS.get(player);
+        if (outer != null) {
+            outer.yaw += head ? Mth.PI : Mth.PI / 2;
+        }
+    }
+
     /** {@code PlayerRenderer#render} TAIL: puts back the body yaw {@link #beforeRender} replaced for drawing. */
     public static void afterRender(AbstractClientPlayer player) {
         OuterFade outer = OUTERS.get(player);

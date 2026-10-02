@@ -182,6 +182,18 @@ public final class ClimbLogic {
         return 0;
     }
 
+    /**
+     * The jump off the wall from hanging on ({@code handleClimbing} 1177-1180): a head jump when grab is held,
+     * or when it is not with {@code move.jump.climb.back.head.on.grab} off; each with and without the feet on a
+     * hold. The original named its flag for the feet case {@code handsOnly}, the other way round.
+     *
+     * @return 7 or 8 for a jump up and back, 9 or 10 for a head jump, the first of each with the feet on a hold
+     */
+    public static int backJumpType(boolean feetHold, boolean headOnGrab, boolean grabPressed) {
+        boolean head = headOnGrab == grabPressed;
+        return head ? (feetHold ? 9 : 10) : (feetHold ? 7 : 8);
+    }
+
     /** The minimum movement per tick that still counts as climb sprinting ({@code isClimbSprintSpeed}). */
     public static double sprintMinimumTickDistance(boolean up, boolean down, float upFactor, float downFactor) {
         return up ? 0.07 * upFactor : down ? 0.11 * downFactor : 0.07;
