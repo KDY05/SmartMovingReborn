@@ -159,6 +159,16 @@ class GrabDetectorTest {
     }
 
     @Test
+    void crawlingSearchesABlockLower() {
+        // A crawling box lies on the ground: its hands find the top of a one block wall where standing ones
+        // reach over it.
+        GrabDetector.Result result = new GrabDetector(new Terrain().set(1, 0, 0, Cell.FULL), SETTINGS)
+                .detect(0.5, 0, 0.5, EAST, false, false, true);
+        assertEquals(HandsClimbing.BOTTOM_HOLD, result.hands());
+        assertEquals(FeetClimbing.BASE_WITH_HANDS, result.feet());
+    }
+
+    @Test
     void heightsBelowZeroSearchTheSameEdges() {
         GrabDetector.Result result = detect(new Terrain().set(1, -10, 0, Cell.FULL), -10, EAST);
         assertEquals(HandsClimbing.TOP_HOLD, result.hands());

@@ -105,19 +105,21 @@ public final class GrabDetector {
 
     /**
      * Looks around a free climbing player ({@code handleClimbing}, the part that calls {@code seekClimbGap}).
-     * The original lowered its height by a block for crawling, sliding, climb crawling and crawl climbing, whose
-     * box it had raised by one; here {@code feetY} is always the feet.
+     * Climb crawling, crawl climbing, crawling and sliding search a block lower than the box: a crawling or
+     * sliding box lies on the ground and its holds are lower, and a climb crawling one was raised by a block.
      *
-     * @param small crawling or sliding
+     * @param boxBottom the bottom of the player's box
+     * @param small     crawling or sliding
      */
-    public Result detect(double x, double feetY, double z, float yaw, boolean climbCrawling, boolean crawlClimbing,
-                         boolean small) {
+    public Result detect(double x, double boxBottom, double z, float yaw, boolean climbCrawling,
+                         boolean crawlClimbing, boolean small) {
         this.climbCrawling = climbCrawling;
         this.crawlClimbing = crawlClimbing;
         this.small = small;
         int blockX = (int) Math.floor(x);
         int blockZ = (int) Math.floor(z);
-        double halves = feetY * 2 + 1;
+        double bottom = climbCrawling || crawlClimbing || small ? boxBottom - 1 : boxBottom;
+        double halves = bottom * 2 + 1;
 
         HandsClimbing[] hands = {HandsClimbing.NONE};
         FeetClimbing[] feet = {FeetClimbing.NONE};
@@ -137,6 +139,40 @@ public final class GrabDetector {
         return new Result(hands[0], feet[0], handsGap, feetGap, neighborClimbing, neighborClimbGap,
                 neighborClimbCrawlGap, handsGap.canStand || feetGap.canStand,
                 handsGap.mustCrawl || feetGap.mustCrawl);
+    }
+
+    /**
+     * The smart base climbing mode's check for a hold the hands could use instead of a ladder, in the block
+     * towards {@code o} at height {@code y} ({@code isHandsLadderSubstitute}). The original took the player's
+     * block and position from the last free climbing search; here they are passed in.
+     */
+    public boolean isHandsLadderSubstitute(ClimbOrientation o, int x, int y, int z, double playerX,
+                                           double playerZ) {
+        return substitute(o, x, y, z, playerX, playerZ, 1) || substitute(o, x, y, z, playerX, playerZ, 0)
+                || substitute(o, x, y, z, playerX, playerZ, -1);
+    }
+
+    /** Like {@link #isHandsLadderSubstitute}, for the feet ({@code isFeetLadderSubstitute}). */
+    public boolean isFeetLadderSubstitute(ClimbOrientation o, int x, int y, int z, double playerX,
+                                          double playerZ) {
+        return substitute(o, x, y, z, playerX, playerZ, 1) || substitute(o, x, y, z, playerX, playerZ, 0);
+    }
+
+    private boolean substitute(ClimbOrientation o, int x, int y, int z, double playerX, double playerZ,
+                               int halfOffset) {
+        this.o = o;
+        baseX = x;
+        baseZ = z;
+        remoteX = x + o.x;
+        remoteZ = z + o.z;
+        this.playerX = playerX;
+        this.playerZ = playerZ;
+        climbCrawling = false;
+        crawlClimbing = false;
+        small = false;
+        crawl = false;
+        allHalves = 2 * y;
+        return ladderSubstitute(halfOffset, null) > 0;
     }
 
     private void seekClimbGap(ClimbOrientation orientation, float yaw, int blockX, double x, double halves,
@@ -355,7 +391,7 @@ public final class GrabDetector {
                 out.mustCrawl = gap > 1 && gap < 4;
                 out.direction = o;
             }
-            if (holdListener != null) {
+            if (holdListener != null && out != null) {
                 holdListener.accept(new Hold(o, baseX, baseZ, localY + localHalf * 0.5, searchingHands, gap));
             }
         }

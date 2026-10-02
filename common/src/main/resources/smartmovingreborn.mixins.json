@@ -5,9 +5,11 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "common.EntityAccessor",
+    "common.EntityMixin",
     "common.LivingEntityMixin",
     "common.PlayerMixin",
     "server.ChunkMapAccessor",
+    "server.ServerGamePacketListenerImplAccessor",
     "server.ServerGamePacketListenerImplMixin",
     "server.TrackedEntityAccessor"
   ],

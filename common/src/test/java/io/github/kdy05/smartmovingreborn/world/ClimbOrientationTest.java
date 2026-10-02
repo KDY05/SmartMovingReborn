@@ -22,7 +22,7 @@ class ClimbOrientationTest {
             assertEquals(ring.get((i + 3) % 8), orientation.rotate(135), orientation + " + 135");
             assertEquals(ring.get((i + 5) % 8), orientation.rotate(-135), orientation + " - 135");
         }
-        assertThrows(IllegalStateException.class, () -> ZZ.rotate(90));
+        assertEquals(ZZ, ZZ.rotate(90));
     }
 
     @Test

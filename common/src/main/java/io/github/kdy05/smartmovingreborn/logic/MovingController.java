@@ -2,6 +2,7 @@ package io.github.kdy05.smartmovingreborn.logic;
 
 import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
+import io.github.kdy05.smartmovingreborn.mixin.server.ServerGamePacketListenerImplAccessor;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.ServerNetworkHandler;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
@@ -178,7 +179,34 @@ public final class MovingController {
         if (!isActiveSelf(entity)) {
             return null;
         }
-        return null;
+        return self.onClimbable();
+    }
+
+    /** Replaces {@code LivingEntity#handleOnClimbable} when non-null: ladders and vines before moving. */
+    public static Vec3 handleOnClimbable(Entity entity, Vec3 motion) {
+        if (!isActiveSelf(entity)) {
+            return null;
+        }
+        return self.handleOnClimbable(motion, SmartMovingReborn.CLIENT_CONFIG);
+    }
+
+    /**
+     * {@code LivingEntity#handleRelativeFrictionAndCalculateMovement} RETURN: the motion after moving on land or
+     * in the air and before gravity, which climbing sets (original {@code handleClimbing}).
+     */
+    public static Vec3 afterFrictionMove(Entity entity, Vec3 motion) {
+        if (!isActiveSelf(entity)) {
+            return motion;
+        }
+        return self.afterFrictionMove(motion, SmartMovingReborn.CLIENT_CONFIG);
+    }
+
+    /**
+     * Whether {@code Entity#getMovementEmission} should be none: climbing makes no step sounds or vibrations of
+     * vanilla's (original {@code canTriggerWalking}); it has its own sounds.
+     */
+    public static boolean silentMovement(Entity entity) {
+        return isActiveSelf(entity) && self.state.climbing;
     }
 
     /** Replaces {@code Player#travel} when true (original {@code moveEntityWithHeading}). Jumps first. */
@@ -312,18 +340,26 @@ public final class MovingController {
     }
 
     /**
-     * {@code ServerGamePacketListenerImpl#handleMovePlayer} at every return on the server thread. A wall jump
-     * clears the fall distance ({@code SmartMovingServer.afterOnUpdate}); the client sends that state after
-     * the jump tick's movement, so it clears what the following movements add. The original also set the
-     * server's vertical motion, which the client's movement packets decide here.
+     * {@code ServerGamePacketListenerImpl#handleMovePlayer} at every return on the server thread
+     * ({@code SmartMovingServer.afterOnUpdate}). Climbing and a wall jump clear the fall distance, and climbing
+     * the ticks in the air that get a player kicked for flying. A wall jump's state arrives after the jump
+     * tick's movement, so it clears what the following movements add. The original also set the server's
+     * vertical motion, which the client's movement packets decide here.
      */
     public static void afterHandleMovePlayer(ServerPlayer player) {
         if (!isActiveOnServer(player)) {
             return;
         }
         MovingState state = ServerNetworkHandler.getState(player);
-        if (state != null && state.wallJumping) {
+        if (state == null) {
+            return;
+        }
+        boolean climbing = state.climbing || state.crawlClimbing || state.ceilingClimbing;
+        if (climbing || state.wallJumping) {
             player.fallDistance = 0;
+        }
+        if (climbing) {
+            ((ServerGamePacketListenerImplAccessor) player.connection).smartmovingreborn$setAboveGroundTickCount(0);
         }
     }
 }

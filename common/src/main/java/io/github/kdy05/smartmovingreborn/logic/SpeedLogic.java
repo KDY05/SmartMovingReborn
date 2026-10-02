@@ -105,8 +105,14 @@ public final class SpeedLogic {
     public static boolean groundSprinting(boolean wantSprint, boolean wantSneak, boolean burning,
                                           boolean usingItem, boolean sprintWhileUsing,
                                           int collidedHorizontallyTicks, boolean onGround) {
-        boolean canAnySprint = wantSprint && !wantSneak && !burning && (sprintWhileUsing || !usingItem);
-        return canAnySprint && collidedHorizontallyTicks < SPRINT_COLLISION_TICKS && onGround;
+        return canAnySprint(wantSprint, wantSneak, burning, usingItem, sprintWhileUsing)
+                && collidedHorizontallyTicks < SPRINT_COLLISION_TICKS && onGround;
+    }
+
+    /** Whether any kind of Smart Moving sprinting may happen ({@code canAnySprint}). */
+    public static boolean canAnySprint(boolean wantSprint, boolean wantSneak, boolean burning, boolean usingItem,
+                                       boolean sprintWhileUsing) {
+        return wantSprint && !wantSneak && !burning && (sprintWhileUsing || !usingItem);
     }
 
     /**

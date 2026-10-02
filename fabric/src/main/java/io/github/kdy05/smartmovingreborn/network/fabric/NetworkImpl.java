@@ -1,6 +1,7 @@
 package io.github.kdy05.smartmovingreborn.network.fabric;
 
 import io.github.kdy05.smartmovingreborn.network.Network;
+import io.github.kdy05.smartmovingreborn.network.SoundMessage;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -21,6 +22,15 @@ public final class NetworkImpl {
         FriendlyByteBuf buf = PacketByteBufs.create();
         message.write(buf);
         ClientPlayNetworking.send(Network.STATE_ID, buf);
+    }
+
+    public static void sendSoundToServer(SoundMessage message) {
+        if (!ClientPlayNetworking.canSend(Network.SOUND_ID)) {
+            return;
+        }
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        message.write(buf);
+        ClientPlayNetworking.send(Network.SOUND_ID, buf);
     }
 
     public static boolean canSendTo(ServerPlayer player) {

@@ -47,10 +47,14 @@ public enum ClimbOrientation {
         return null;
     }
 
-    /** This direction turned by {@code angle} degrees, a multiple of 45; positive turns from +X towards +Z. */
+    /**
+     * This direction turned by {@code angle} degrees, a multiple of 45; positive turns from +X towards +Z.
+     * {@link #ZZ} stays itself; the original threw there, which its ladder substitute search could reach
+     * through a door.
+     */
     public ClimbOrientation rotate(int angle) {
         if (this == ZZ) {
-            throw new IllegalStateException("unrotatable orientation");
+            return ZZ;
         }
         if (angle % 45 != 0) {
             throw new IllegalArgumentException("angle \"" + angle + "\" not supported");

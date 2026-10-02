@@ -3,6 +3,7 @@ package io.github.kdy05.smartmovingreborn.forge;
 import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
+import io.github.kdy05.smartmovingreborn.network.SoundMessage;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.render.SmartMovingHud;
 import net.minecraft.client.Minecraft;
@@ -35,6 +36,10 @@ public final class SmartMovingRebornForgeClient {
     }
 
     public static void sendToServer(StateMessage message) {
+        SmartMovingRebornForgeNetwork.CHANNEL.sendToServer(message);
+    }
+
+    public static void sendToServer(SoundMessage message) {
         SmartMovingRebornForgeNetwork.CHANNEL.sendToServer(message);
     }
 }

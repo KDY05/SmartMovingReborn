@@ -41,6 +41,7 @@ public final class SelfMoving {
     private final ToggleState toggles = new ToggleState();
     private final AngleJumpInput angleJumps = new AngleJumpInput();
     private final WallJumpInput wallJumps = new WallJumpInput();
+    private final SelfClimbing climbing;
     private boolean wasCrawling;
     private boolean groundSprinting;
     private boolean wasRunningWhenSprintStarted;
@@ -81,6 +82,10 @@ public final class SelfMoving {
     private boolean wasCollidedHorizontally;
     /** The direction of the wall the last move ran into while wanting to wall jump, NaN for none. */
     private float horizontalCollisionAngle;
+    /** The sneak key, read fresh each tick. */
+    private boolean sneakInput;
+    /** Where the player's own move started, for the climbing sounds. */
+    private Vec3 selfMoveStart;
     /** Where the current move started and how far it was asked to go, NaN while not measuring. */
     private double moveStartX;
     private double moveStartZ;
@@ -90,6 +95,7 @@ public final class SelfMoving {
     SelfMoving(Player player, MovingState state) {
         this.player = player;
         this.state = state;
+        this.climbing = new SelfClimbing(player, state);
         reset();
     }
 
@@ -126,6 +132,9 @@ public final class SelfMoving {
         toggles.reset();
         angleJumps.reset();
         wallJumps.reset();
+        climbing.reset();
+        sneakInput = false;
+        selfMoveStart = null;
     }
 
     /** At the start of the tick ({@code beforeOnUpdate}). */
@@ -138,6 +147,7 @@ public final class SelfMoving {
                            Button back, boolean forwardPressed, boolean jumpInput, SmartMovingClientConfig config) {
         this.jumpInput = jumpInput;
         grabPressed = grab.pressed;
+        sneakInput = sneak.pressed;
         jumpAvoided = false;
         boolean flying = player.getAbilities().flying;
         boolean smartFlying = flying && config.fly.get();
@@ -154,12 +164,13 @@ public final class SelfMoving {
                 grab.startPressed, sneak.pressed || toggles.isSneakToggled(), onGround);
         boolean canCrawl = !player.isSwimming()
                 && player.getFluidHeight(FluidTags.WATER) < CrawlLogic.MAX_WATER_DEPTH
+                && !state.climbing
                 && player.fallDistance < config.fallDistanceMinimum.get()
                 && !player.isPassenger() && !player.isSleeping() && !player.isFallFlying();
         wasCrawling = crawling;
         state.crawling = canCrawl && (wantCrawl || mustCrawl);
 
-        // Later moves (climbing, ...) are decided here, before sneaking and sprinting.
+        climbing.updateInput(grab, sneak, jump, forwardPressed, wasCrawling, wantCrawl, disabled, config);
 
         updateSlideAndHeadJump(sneak, grab, flying, onGround, config);
 
@@ -167,10 +178,10 @@ public final class SelfMoving {
                 sneak.pressed, sneak.startPressed, wantCrawl, mustCrawl, config.crawl.get(), grab.pressed, smartFlying,
                 state.sliding || state.headJumping);
         boolean wantSneak = config.sneak.get() && wouldWantSneak;
-        boolean wantSprint = SpeedLogic.wantSprint(config.sprint.get(), sprint.pressed, forwardPressed, state.sliding,
-                disabled);
+        boolean wantSprint = SpeedLogic.wantSprint(config.sprint.get(), sprint.pressed,
+                forwardPressed || state.climbing, state.sliding, disabled);
 
-        if (!onGround && state.fast) {
+        if (!onGround && state.fast && !state.climbing) {
             sprintJump = true;
         }
         if (onGround || smartFlying || player.isInLava()) {
@@ -179,8 +190,10 @@ public final class SelfMoving {
 
         boolean wasGroundSprinting = groundSprinting;
         groundSprinting = SpeedLogic.groundSprinting(wantSprint, wantSneak, player.isOnFire(), player.isUsingItem(),
-                config.usageSprint.get(), collidedHorizontallyTicks, onGround);
-        state.fast = groundSprinting;
+                config.usageSprint.get(), collidedHorizontallyTicks, onGround && !state.climbing);
+        boolean climbSprinting = SpeedLogic.canAnySprint(wantSprint, wantSneak, player.isOnFire(),
+                player.isUsingItem(), config.usageSprint.get()) && state.climbing && climbing.sprintSpeed(config);
+        state.fast = groundSprinting || climbSprinting;
         if (groundSprinting && !wasGroundSprinting) {
             wasRunningWhenSprintStarted = player.isSprinting();
             player.setSprinting(SpeedLogic.standupSprintingOrRunning(state.fast, player.isSprinting(), onGround,
@@ -189,19 +202,19 @@ public final class SelfMoving {
             player.setSprinting(wasRunningWhenSprintStarted);
         }
 
-        wouldSneak = wouldWantSneak && !wantSprint;
+        wouldSneak = wouldWantSneak && !wantSprint && !state.climbing;
         boolean wasSlow = state.slow;
         state.slow = wantSneak && wouldSneak;
         Vec3 motion = player.getDeltaMovement();
         standing = motion.x * motion.x + motion.z * motion.z < STANDING_SPEED_SQUARE;
 
         state.wallJumping = false;
-        // Climbing (steps 11-12) and Smart Moving swimming (step 14) also rule it out; until then any water does.
+        // Smart Moving swimming (step 14) also rules it out; until then any water does.
         boolean canWallJump = config.wallUpJump.get() && !state.headJumping && !player.onGround() && !flying
-                && !player.isInWater() && !player.isFallFlying();
+                && !player.isInWater() && !player.isFallFlying() && !state.climbing;
         wallJumps.update(canWallJump,
                 config.wallJumpDoubleClick.get() ? (int) Math.ceil(config.wallJumpDoubleClickTicks.get()) : 0,
-                player.onGround(), jump.pressed, jump.startPressed, player.horizontalCollision);
+                player.onGround() || state.climbing, jump.pressed, jump.startPressed, player.horizontalCollision);
 
         boolean canAngleJump = !player.isSleeping() && onGround && !state.crawling;
         boolean canSideJump = config.angleJumpSide.get() && canAngleJump;
@@ -319,6 +332,7 @@ public final class SelfMoving {
     void beforeTravel(SmartMovingClientConfig config) {
         vanillaDamping = Float.NaN;
         handleJumping(config);
+        climbing.beforeTravel(player.zza > 0);
         if (state.sliding && player.onGround()) {
             Vec3 motion = player.getDeltaMovement();
             double[] steered = SlideLogic.steer(motion.x, motion.z, player.xxa, config.slideControlAngle.get());
@@ -475,6 +489,7 @@ public final class SelfMoving {
      * head jump's in the air ({@code landMotion} 757-786); then wall jumps ({@code handleWallJumping}).
      */
     void afterTravel(SmartMovingClientConfig config) {
+        climbing.afterTravel();
         if (!Float.isNaN(vanillaDamping)) {
             damp(config);
         }
@@ -531,6 +546,7 @@ public final class SelfMoving {
      * goes after a cobweb's slowdown, which vanilla applies first.
      */
     void beforeMove(MoverType type, Vec3 movement) {
+        selfMoveStart = type == MoverType.SELF ? player.position() : null;
         if (type != MoverType.SELF || !wallJumps.want()) {
             moveStartX = Double.NaN;
             horizontalCollisionAngle = Float.NaN;
@@ -552,6 +568,10 @@ public final class SelfMoving {
      * follows its axis order, which differs from 1.7.10's.
      */
     void afterMove() {
+        if (selfMoveStart != null) {
+            climbing.afterMove(player.position().distanceTo(selfMoveStart));
+            selfMoveStart = null;
+        }
         if (Double.isNaN(moveStartX)) {
             return;
         }
@@ -569,7 +589,7 @@ public final class SelfMoving {
      * A slide only glides, without walking.
      */
     float landSpeedFactor(SmartMovingClientConfig config) {
-        if (state.sliding) {
+        if (state.sliding || climbing.pushedBack()) {
             return 0;
         }
         return SpeedLogic.landSpeedFactor(config.speedFactor.get(), itemFactor(config),
@@ -578,7 +598,29 @@ public final class SelfMoving {
                 player.isSprinting())
                 * SpeedLogic.jumpFactor(player.onGround(), jumpInput, state.fast, config.sprintJump.get(),
                 config.sprintJumpVerticalFactor.get(), config.jumpControlFactor.get(), state.headJumping,
-                config.headJumpControlFactor.get());
+                config.headJumpControlFactor.get())
+                * climbing.horizontalFactor(player.xxa != 0 || player.zza != 0, config);
+    }
+
+    /**
+     * {@code LivingEntity#onClimbable} for the own player when non-null: the original's ladders and vines
+     * ({@code isOnLadder}).
+     */
+    Boolean onClimbable() {
+        return climbing.onClimbable();
+    }
+
+    /** Replaces {@code LivingEntity#handleOnClimbable} when non-null: ladder and vine handling before moving. */
+    Vec3 handleOnClimbable(Vec3 motion, SmartMovingClientConfig config) {
+        return climbing.handleOnClimbable(motion, player.zza > 0, sneakInput, speedFactor(config), config);
+    }
+
+    /**
+     * {@code LivingEntity#handleRelativeFrictionAndCalculateMovement} RETURN: the motion after moving and before
+     * gravity, which climbing sets.
+     */
+    Vec3 afterFrictionMove(Vec3 vanilla, SmartMovingClientConfig config) {
+        return climbing.afterMove(vanilla, grabPressed, state.fast, speedFactor(config), config);
     }
 
     /**

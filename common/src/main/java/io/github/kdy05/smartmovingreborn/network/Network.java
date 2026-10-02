@@ -10,9 +10,10 @@ import net.minecraft.server.level.ServerPlayer;
  * so modded and vanilla clients and servers can connect to each other.
  */
 public final class Network {
-    /** Fabric channel ids. Forge multiplexes both messages over one {@code SimpleChannel}. */
+    /** Fabric channel ids. Forge multiplexes the messages over one {@code SimpleChannel}. */
     public static final ResourceLocation STATE_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "state");
     public static final ResourceLocation RELAY_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "relay");
+    public static final ResourceLocation SOUND_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "sound");
 
     private Network() {
     }
@@ -26,6 +27,12 @@ public final class Network {
     /** Client only. Call only when {@link #isServerPresent()} is true. */
     @ExpectPlatform
     public static void sendToServer(StateMessage message) {
+        throw new AssertionError();
+    }
+
+    /** Client only. Call only when {@link #isServerPresent()} is true. */
+    @ExpectPlatform
+    public static void sendSoundToServer(SoundMessage message) {
         throw new AssertionError();
     }
 

@@ -7,6 +7,7 @@ import io.github.kdy05.smartmovingreborn.input.KeyBindings;
 import io.github.kdy05.smartmovingreborn.logic.MovingController;
 import io.github.kdy05.smartmovingreborn.mixin.client.CameraAccessor;
 import io.github.kdy05.smartmovingreborn.network.Network;
+import io.github.kdy05.smartmovingreborn.network.SoundMessage;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
 import io.github.kdy05.smartmovingreborn.render.ClimbDebug;
@@ -20,6 +21,7 @@ import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.Input;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 
@@ -223,6 +225,17 @@ public final class SmartMovingClient {
         CameraAccessor accessor = (CameraAccessor) camera;
         accessor.smartmovingreborn$setEyeHeight(accessor.smartmovingreborn$getEyeHeight() - dy);
         accessor.smartmovingreborn$setEyeHeightOld(accessor.smartmovingreborn$getEyeHeightOld() - dy);
+    }
+
+    /**
+     * Plays a sound of the own player's movement, and has the server play it to the players around
+     * ({@code playSound}).
+     */
+    public static void playSound(Player player, SoundEvent sound, float volume, float pitch) {
+        player.playSound(sound, volume, pitch);
+        if (serverPresent) {
+            Network.sendSoundToServer(new SoundMessage(sound.getLocation(), volume, pitch));
+        }
     }
 
     /** The last state received for another player, or null. */

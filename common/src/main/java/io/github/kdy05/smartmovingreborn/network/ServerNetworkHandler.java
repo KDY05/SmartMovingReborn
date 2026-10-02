@@ -4,8 +4,12 @@ import io.github.kdy05.smartmovingreborn.mixin.server.ChunkMapAccessor;
 import io.github.kdy05.smartmovingreborn.mixin.server.TrackedEntityAccessor;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.state.StatePacketCodec;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerPlayerConnection;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Pose;
 
 import java.util.Map;
@@ -45,5 +49,19 @@ public final class ServerNetworkHandler {
                 Network.sendTo(target, relay);
             }
         }
+    }
+
+    /**
+     * Runs on the server thread. Plays a climbing sound of the sender's to the players around it, but not to the
+     * sender, which played it already. Only registered sounds, while the sender climbs, at most at full volume.
+     */
+    public static void onSound(ServerPlayer sender, SoundMessage message) {
+        MovingState state = STATES.get(sender);
+        SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(message.sound());
+        if (state == null || !(state.climbing || state.ceilingClimbing) || sound == null) {
+            return;
+        }
+        sender.serverLevel().playSound(sender, sender.getX(), sender.getY(), sender.getZ(), sound,
+                SoundSource.PLAYERS, Mth.clamp(message.volume(), 0, 1), Mth.clamp(message.pitch(), 0.5f, 2));
     }
 }
