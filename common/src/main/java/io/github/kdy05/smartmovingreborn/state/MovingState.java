@@ -50,6 +50,19 @@ public final class MovingState {
         return crawling || sliding || headJumping;
     }
 
+    /**
+     * Climbing into a gap with the box shrunk from below ({@code isClimbCrawling}). The original did not send it;
+     * it is the one way of climbing in a small box that is neither crawling nor crawl climbing.
+     */
+    public boolean climbCrawling() {
+        return climbing && small && !crawlClimbing && !lying();
+    }
+
+    /** The moves in a small box, {@code Pose.SWIMMING}: lying, crawl climbing and climb crawling. */
+    public boolean smallPose() {
+        return lying() || crawlClimbing || climbCrawling();
+    }
+
     /** Short human-readable form for the debug screen, e.g. {@code crawling small hands=2}. */
     public String describe() {
         List<String> parts = new ArrayList<>();

@@ -55,8 +55,15 @@ final class SelfClimbing {
     private boolean jumpStarted;
     /** Hanging on without climbing ({@code isClimbHolding}). */
     boolean holding;
-    /** Climbing into a gap with a raised box ({@code isClimbCrawling}); set from step 12-3. */
+    /** Would hang on if climbing ({@code wantClimbHolding}). */
+    boolean wantHolding;
+    /** Climbing into a gap with the box shrunk from below and lifted a block ({@code isClimbCrawling}). */
     boolean climbCrawling;
+    /**
+     * Ticks left of climbing on into a gap after the gap's room is no longer found, holding still meanwhile
+     * ({@code climbIntoCount}): set to 6, counted down to 1, then climb crawling ends.
+     */
+    int climbIntoCount;
     private boolean neighborClimbing;
     private boolean climbGap;
     private boolean climbCrawlGap;
@@ -89,6 +96,11 @@ final class SelfClimbing {
         wantClimb = false;
         jumpStarted = false;
         holding = false;
+        wantHolding = false;
+        climbCrawling = false;
+        climbIntoCount = 0;
+        climbGap = false;
+        climbCrawlGap = false;
         handsEdge = null;
         feetEdge = null;
         handsEdgeMeta = -1;
@@ -159,10 +171,41 @@ final class SelfClimbing {
      * climbing, with sneak (or the crawl toggle) held, or while a screen takes the input.
      */
     void updateHolding(boolean sneakPressed, boolean crawlToggled, boolean inputBlocked) {
-        boolean wantHolding = holding && sneakPressed
+        wantHolding = holding && sneakPressed
                 || state.climbing && inputBlocked
                 || wantClimb && !player.isSwimming() && !state.crawling && (sneakPressed || crawlToggled);
         holding = wantHolding && state.climbing;
+    }
+
+    /** Whether a hold was found around the player, in an axis direction ({@code isNeighborClimbing}). */
+    boolean neighborClimbing() {
+        return neighborClimbing;
+    }
+
+    /**
+     * Whether to climb crawl this tick ({@code updateEntityActionState} 2617-2627): climbing up while hanging on
+     * where there is room to crawl, or to stand while hanging on; and for {@link #climbIntoCount} more ticks
+     * once that room is gone.
+     */
+    boolean updateClimbCrawling() {
+        boolean need = climbCrawlGap || climbGap && holding;
+        boolean can = wantHolding && wantClimbUp;
+        if (climbIntoCount > 1) {
+            climbIntoCount--;
+        } else if (climbCrawling && !need && climbIntoCount == 0) {
+            climbIntoCount = 6;
+        }
+        climbCrawling = can && (need && climbIntoCount == 0 || climbIntoCount > 1);
+        if (!climbCrawling) {
+            climbIntoCount = 0;
+        }
+        return climbCrawling;
+    }
+
+    /** Forgets this tick's climbing wish, after crawl climbing gave way to crawling or standing. */
+    void cancelClimbWish() {
+        wantClimbUp = false;
+        wantClimbDown = false;
     }
 
     // Ladders and vines
@@ -437,7 +480,7 @@ final class SelfClimbing {
                 config.climbFreeLadderOneUpSpeedFactor.get(), config.climbFreeLadderTwoUpSpeedFactor.get())
                 : 1;
         double value = ClimbLogic.scale(speed, factor, ladderFactor, config.climbFreeUpSpeedFactor.get(),
-                config.climbFreeDownSpeedFactor.get(), false, false);
+                config.climbFreeDownSpeedFactor.get(), climbIntoCount > 0, climbCrawlGap && climbCrawling);
         boolean relevant = value < 0 || value > motionY;
         state.climbJumping = !relevant && !holding;
         return relevant ? value : motionY;

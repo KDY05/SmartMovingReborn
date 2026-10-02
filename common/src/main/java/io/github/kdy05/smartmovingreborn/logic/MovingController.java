@@ -280,13 +280,19 @@ public final class MovingController {
      * standing up.
      */
     public static boolean suppressSwimAmount(Entity entity) {
-        return entity instanceof Player player && lying(player);
+        return entity instanceof Player player && smallPose(player);
     }
 
-    /** Whether {@code player} lies in {@code Pose.SWIMMING} for a Smart Moving move. */
-    private static boolean lying(Player player) {
+    /**
+     * Whether {@code player} is in {@code Pose.SWIMMING} for a Smart Moving move ({@link MovingState#smallPose}).
+     * The own player's climb crawling is known at once, before its state's size flag catches up.
+     */
+    public static boolean smallPose(Player player) {
+        if (self != null && player == self.player) {
+            return SmartMovingClient.isActive() && self.smallPose();
+        }
         MovingState state = stateOf(player);
-        return state != null && state.lying();
+        return state != null && state.smallPose();
     }
 
     /**
@@ -294,7 +300,7 @@ public final class MovingController {
      * {@link #LYING_EYE_HEIGHT} above the box's bottom instead of vanilla's 0.4 for swimming.
      */
     public static Float standingEyeHeight(Player player, Pose pose) {
-        return pose == Pose.SWIMMING && lying(player) ? LYING_EYE_HEIGHT : null;
+        return pose == Pose.SWIMMING && smallPose(player) ? LYING_EYE_HEIGHT : null;
     }
 
     /**
@@ -305,7 +311,7 @@ public final class MovingController {
      * @return whether the eye height now is a lying move's
      */
     public static boolean updateEyeHeight(Player player, boolean wasLying) {
-        boolean lying = lying(player);
+        boolean lying = smallPose(player);
         if (lying != wasLying) {
             player.refreshDimensions();
         }
@@ -317,8 +323,7 @@ public final class MovingController {
      * a client never get here: {@code RemotePlayer} skips this method and takes the pose the server synchronizes.
      */
     public static boolean updatePose(Player player) {
-        MovingState state = stateOf(player);
-        if (state == null || !state.lying()) {
+        if (!smallPose(player)) {
             return false;
         }
         player.setPose(Pose.SWIMMING);

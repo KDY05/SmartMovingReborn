@@ -16,6 +16,7 @@ import io.github.kdy05.smartmovingreborn.render.SlideParticles;
 import io.github.kdy05.smartmovingreborn.render.SmartMovingRender;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -24,7 +25,9 @@ import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
  * The client's own player's Smart Moving state and its per-tick update, like the original's
@@ -35,6 +38,14 @@ import net.minecraft.world.phys.Vec3;
 public final class SelfMoving {
     /** Horizontal speed squared below which the player counts as standing ({@code isStanding}). */
     private static final double STANDING_SPEED_SQUARE = 5.0E-4;
+    /**
+     * How much taller the standing box is than the small one: what the body grows downwards by when standing up
+     * from a small box on a wall. The original's small box was 0.8 high and grew by 1; this port's is vanilla's
+     * 0.6.
+     */
+    private static final double SMALL_TO_STANDING = 1.2;
+    /** Climb crawling lifts the player this much and then moves it up a little more ({@code move(0, 0.05, 0)}). */
+    private static final double CLIMB_CRAWL_LIFT = 1;
 
     final Player player;
     final MovingState state;
@@ -71,6 +82,8 @@ public final class SelfMoving {
     private boolean aerodynamic;
     /** The head jump lifted the player a block, standing in for the original's raised box ({@link #tryJump}). */
     private boolean lifted;
+    /** Climb crawling started from the standing box and lifted the player ({@link #updateClimbCrawling}). */
+    private boolean climbCrawlLifted;
     /**
      * The horizontal damping vanilla applies in this tick's {@code travel}, NaN before it moves the player on
      * land or in the air; with the friction and ground state it came from.
@@ -125,6 +138,7 @@ public final class SelfMoving {
         grabPressed = false;
         aerodynamic = false;
         lifted = false;
+        climbCrawlLifted = false;
         vanillaDamping = Float.NaN;
         wasCollidedHorizontally = false;
         horizontalCollisionAngle = Float.NaN;
@@ -206,6 +220,8 @@ public final class SelfMoving {
         boolean wasSlow = state.slow;
         state.slow = wantSneak && wouldSneak;
         climbing.updateHolding(sneak.pressed, toggles.isCrawlToggled(), SmartMovingClient.isInputBlocked());
+        updateCrawlClimbing(sneak, forwardPressed, config);
+        updateClimbCrawling(sneak, mustCrawl, config);
         Vec3 motion = player.getDeltaMovement();
         standing = motion.x * motion.x + motion.z * motion.z < STANDING_SPEED_SQUARE;
 
@@ -230,6 +246,133 @@ public final class SelfMoving {
 
         toggles.update(config.sneakToggle.get(), config.crawlToggle.get(), state.crawling, wasCrawling,
                 state.slow, wasSlow, state.fast, wantSneak && wantSprint, false, sneak, jump);
+    }
+
+    /**
+     * Crawl climbing ({@code updateEntityActionState} 2571-2615): a crawling player climbing a wall with sneak
+     * held and forward stays small. As soon as the body fits below the box, it grows downwards and climbs on
+     * standing. Ending it, the player crawls on or stands up at the block's floor.
+     */
+    private void updateCrawlClimbing(Button sneak, boolean forwardPressed, SmartMovingClientConfig config) {
+        boolean toCrawlingInput = sneak.pressed || toggles.isCrawlToggled();
+        boolean wasCrawlClimbing = state.crawlClimbing;
+        state.crawlClimbing = (wasCrawling || state.crawlClimbing) && state.climbing && climbing.neighborClimbing()
+                && toCrawlingInput && forwardPressed;
+        if (state.crawlClimbing) {
+            double bottom = player.getBoundingBox().minY;
+            double below = SMALL_TO_STANDING - (climbing.climbCrawling ? 0.05 : 0);
+            if (!solidBetween(bottom - below, bottom)) {
+                wasCrawlClimbing = false;
+                state.crawlClimbing = false;
+                if (!climbing.climbCrawling) {
+                    standUpFromSmall(-SMALL_TO_STANDING);
+                }
+            }
+            if (!wasCrawlClimbing) {
+                wasCrawling = false;
+                state.crawling = false;
+            }
+        } else if (wasCrawlClimbing) {
+            double bottom = player.getBoundingBox().minY;
+            if (!state.climbing) {
+                toCrawling(config);
+                player.move(MoverType.SELF, new Vec3(0, Math.floor(bottom) - bottom, 0));
+            } else if (!forwardPressed) {
+                wasCrawling = toCrawlingInput;
+                state.crawling = toCrawlingInput;
+                climbing.cancelClimbWish();
+                if (toCrawlingInput) {
+                    player.move(MoverType.SELF, new Vec3(0, Math.floor(bottom) - bottom, 0));
+                } else {
+                    standUpFromSmall(-SMALL_TO_STANDING);
+                    player.move(MoverType.SELF, new Vec3(0, Math.floor(bottom) - (bottom - SMALL_TO_STANDING), 0));
+                }
+            } else if (!toCrawlingInput) {
+                standUpFromSmall(-SMALL_TO_STANDING);
+                double standing = bottom - SMALL_TO_STANDING;
+                player.move(MoverType.SELF, new Vec3(0, Math.ceil(bottom - 1) - standing, 0));
+            }
+        }
+    }
+
+    /**
+     * Climb crawling ({@code updateEntityActionState} 2617-2647): from the standing box, the box shrinks from
+     * below, lifted a block so that its bottom is where the original's was, and the model is drawn a block lower.
+     * A box already small from crawl climbing stays where it is, like the original's, whose height offset was
+     * set already. Ending it, the player stands again, or crawls on at the floor of the gap it climbed into.
+     */
+    private void updateClimbCrawling(Button sneak, boolean mustCrawl, SmartMovingClientConfig config) {
+        boolean was = climbing.climbCrawling;
+        boolean now = climbing.updateClimbCrawling();
+        if (now && !was) {
+            climbCrawlLifted = player.getPose() != Pose.SWIMMING;
+            if (climbCrawlLifted) {
+                player.setPose(Pose.SWIMMING);
+                SmartMovingClient.sendStateNow(player);
+                shiftPosition(CLIMB_CRAWL_LIFT);
+            }
+            boolean collided = player.horizontalCollision;
+            player.move(MoverType.SELF, new Vec3(0, 0.05, 0));
+            player.horizontalCollision = collided;
+        } else if (!now && was) {
+            // Standing up keeps the original's box: a lifted box grows back by the lift, a small one keeps its top.
+            double standUp = climbCrawlLifted ? -CLIMB_CRAWL_LIFT : -SMALL_TO_STANDING;
+            climbCrawlLifted = false;
+            if (!mustCrawl && !sneak.pressed && !toggles.isCrawlToggled()) {
+                standUpFromSmall(standUp);
+            } else {
+                double bottom = player.getBoundingBox().minY;
+                double gap = bottom - maxSolidBetween(bottom - 1, bottom);
+                if (gap >= 0 && gap < 1) {
+                    toCrawling(config);
+                    player.move(MoverType.SELF, new Vec3(0, -gap, 0));
+                } else {
+                    standUpFromSmall(standUp);
+                }
+            }
+        }
+    }
+
+    /** Back to the standing box from a small one, moving the player by {@code dy} without collisions. */
+    private void standUpFromSmall(double dy) {
+        shiftPosition(dy);
+        player.setPose(Pose.STANDING);
+    }
+
+    /**
+     * Moves the player by {@code dy} without collisions, like the original's box changes; the previous position
+     * and the camera's eye height move along so that the view and the model's interpolation stay put.
+     */
+    private void shiftPosition(double dy) {
+        player.setPos(player.getX(), player.getY() + dy, player.getZ());
+        player.yo += dy;
+        player.yOld += dy;
+        SmartMovingClient.offsetCameraEyeHeight(player, (float) dy);
+    }
+
+    /** Whether any block collides with the player's box between heights {@code minY} and {@code maxY}. */
+    private boolean solidBetween(double minY, double maxY) {
+        AABB box = player.getBoundingBox();
+        return !player.level().noCollision(player, new AABB(box.minX, minY, box.minZ, box.maxX, maxY, box.maxZ));
+    }
+
+    /**
+     * The highest top of a block collision within the player's box between {@code minY} and {@code maxY}, or
+     * {@code minY} for none ({@code getMaxPlayerSolidBetween}).
+     */
+    private double maxSolidBetween(double minY, double maxY) {
+        AABB box = player.getBoundingBox();
+        double result = minY;
+        for (VoxelShape shape : player.level().getBlockCollisions(player,
+                new AABB(box.minX, minY, box.minZ, box.maxX, maxY, box.maxZ))) {
+            result = Math.max(result, shape.max(Direction.Axis.Y));
+        }
+        return Math.min(result, maxY);
+    }
+
+    /** Whether the own player is in a small box for a Smart Moving move ({@link MovingState#smallPose}). */
+    boolean smallPose() {
+        return state.lying() || state.crawlClimbing || climbing.climbCrawling;
     }
 
     /**
@@ -612,7 +755,7 @@ public final class SelfMoving {
             return 0;
         }
         return SpeedLogic.landSpeedFactor(config.speedFactor.get(), itemFactor(config),
-                state.crawling, config.crawlFactor.get(), state.slow, sneakFactor(config),
+                state.crawling || state.crawlClimbing && !climbing.climbCrawling, config.crawlFactor.get(), state.slow, sneakFactor(config),
                 state.fast, config.sprintFactor.get(), config.run.get() && isRunning(), config.runFactor.get(),
                 player.isSprinting())
                 * SpeedLogic.jumpFactor(player.onGround(), jumpInput, state.fast, config.sprintJump.get(),

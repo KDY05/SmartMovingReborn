@@ -12,6 +12,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
@@ -48,12 +49,11 @@ public final class SmartMovingRender {
     }
 
     /**
-     * Whether {@code entity} is a player crawling, sliding or head jumping (by the local logic for the own
-     * player), whose model lies down by itself.
+     * Whether {@code entity} is a player in a small box for a Smart Moving move (crawling, sliding, head jumping,
+     * crawl climbing or climb crawling), whose model is drawn a block below its position.
      */
     private static boolean isLying(Entity entity) {
-        MovingState state = stateOf(entity);
-        return state != null && state.lying();
+        return entity instanceof Player player && MovingController.smallPose(player);
     }
 
     /** Whether the player is in a side or back jump ({@code SmartMoving.isAngleJumping}). */
