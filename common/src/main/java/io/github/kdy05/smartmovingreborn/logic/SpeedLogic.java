@@ -109,6 +109,17 @@ public final class SpeedLogic {
                 && collidedHorizontallyTicks < SPRINT_COLLISION_TICKS && onGround;
     }
 
+    /**
+     * Whether the player sprints along a ceiling ({@code isCeilingSprinting}): like on the ground, but while
+     * hanging on a ceiling.
+     */
+    public static boolean ceilingSprinting(boolean wantSprint, boolean wantSneak, boolean burning,
+                                           boolean usingItem, boolean sprintWhileUsing,
+                                           int collidedHorizontallyTicks, boolean ceilingClimbing) {
+        return canAnySprint(wantSprint, wantSneak, burning, usingItem, sprintWhileUsing)
+                && collidedHorizontallyTicks < SPRINT_COLLISION_TICKS && ceilingClimbing;
+    }
+
     /** Whether any kind of Smart Moving sprinting may happen ({@code canAnySprint}). */
     public static boolean canAnySprint(boolean wantSprint, boolean wantSneak, boolean burning, boolean usingItem,
                                        boolean sprintWhileUsing) {

@@ -184,7 +184,8 @@ public final class SelfMoving {
         wasCrawling = crawling;
         state.crawling = canCrawl && (wantCrawl || mustCrawl);
 
-        climbing.updateInput(grab, sneak, jump, forwardPressed, wasCrawling, wantCrawl, disabled, config);
+        climbing.updateInput(grab, sneak, jump, forwardPressed, wasCrawling, wantCrawl, shiftKeyDown(config), disabled,
+                config);
 
         updateSlideAndHeadJump(sneak, grab, flying, onGround, config);
 
@@ -195,7 +196,7 @@ public final class SelfMoving {
         boolean wantSprint = SpeedLogic.wantSprint(config.sprint.get(), sprint.pressed,
                 forwardPressed || state.climbing, state.sliding, disabled);
 
-        if (!onGround && state.fast && !state.climbing) {
+        if (!onGround && state.fast && !state.climbing && !state.ceilingClimbing) {
             sprintJump = true;
         }
         if (onGround || smartFlying || player.isInLava()) {
@@ -207,7 +208,9 @@ public final class SelfMoving {
                 config.usageSprint.get(), collidedHorizontallyTicks, onGround && !state.climbing);
         boolean climbSprinting = SpeedLogic.canAnySprint(wantSprint, wantSneak, player.isOnFire(),
                 player.isUsingItem(), config.usageSprint.get()) && state.climbing && climbing.sprintSpeed(config);
-        state.fast = groundSprinting || climbSprinting;
+        boolean ceilingSprinting = SpeedLogic.ceilingSprinting(wantSprint, wantSneak, player.isOnFire(),
+                player.isUsingItem(), config.usageSprint.get(), collidedHorizontallyTicks, state.ceilingClimbing);
+        state.fast = groundSprinting || climbSprinting || ceilingSprinting;
         if (groundSprinting && !wasGroundSprinting) {
             wasRunningWhenSprintStarted = player.isSprinting();
             player.setSprinting(SpeedLogic.standupSprintingOrRunning(state.fast, player.isSprinting(), onGround,
@@ -748,7 +751,7 @@ public final class SelfMoving {
 
     /**
      * The multiplier on vanilla's walking speed on land and in the air (the original's {@code getSpeedFactor}).
-     * A slide only glides, without walking.
+     * A slide only glides, without walking; hanging on a ceiling moves hand over hand, slowly.
      */
     float landSpeedFactor(SmartMovingClientConfig config) {
         if (state.sliding || climbing.pushedBack()) {
@@ -761,7 +764,8 @@ public final class SelfMoving {
                 * SpeedLogic.jumpFactor(player.onGround(), jumpInput, state.fast, config.sprintJump.get(),
                 config.sprintJumpVerticalFactor.get(), config.jumpControlFactor.get(), state.headJumping,
                 config.headJumpControlFactor.get())
-                * climbing.horizontalFactor(player.xxa != 0 || player.zza != 0, config);
+                * climbing.horizontalFactor(player.xxa != 0 || player.zza != 0, config)
+                * (state.ceilingClimbing ? config.ceilingClimbSpeedFactor.get() : 1);
     }
 
     /**
@@ -779,10 +783,19 @@ public final class SelfMoving {
 
     /**
      * {@code LivingEntity#handleRelativeFrictionAndCalculateMovement} RETURN: the motion after moving and before
-     * gravity, which climbing sets.
+     * gravity, which climbing sets. Without free climbing, a crawl that just started gives way to a ceiling found
+     * a block higher up: the player stands and moves up a block to it ({@code handleCeilingClimbing} 1269-1273).
      */
     Vec3 afterFrictionMove(Vec3 vanilla, SmartMovingClientConfig config) {
-        return climbing.afterMove(vanilla, grabPressed, state.fast, speedFactor(config), config);
+        boolean crawlStartConflict = !config.climbFree.get() && state.crawling && !wasCrawling;
+        Vec3 motion = climbing.afterMove(vanilla, grabPressed, state.fast, speedFactor(config), crawlStartConflict,
+                config);
+        if (crawlStartConflict && state.ceilingClimbing) {
+            state.crawling = false;
+            player.setPose(Pose.STANDING);
+            player.move(MoverType.SELF, new Vec3(0, 1, 0));
+        }
+        return motion;
     }
 
     /**

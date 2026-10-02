@@ -8,6 +8,7 @@ import io.github.kdy05.smartmovingreborn.input.Button;
 import io.github.kdy05.smartmovingreborn.logic.climb.ClimbLogic;
 import io.github.kdy05.smartmovingreborn.logic.jump.JumpType;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
+import io.github.kdy05.smartmovingreborn.world.CeilingBlocks;
 import io.github.kdy05.smartmovingreborn.world.ClimbGap;
 import io.github.kdy05.smartmovingreborn.world.ClimbOrientation;
 import io.github.kdy05.smartmovingreborn.world.ClimbTerrain;
@@ -16,7 +17,9 @@ import io.github.kdy05.smartmovingreborn.world.GrabDetector;
 import io.github.kdy05.smartmovingreborn.world.HandsClimbing;
 import io.github.kdy05.smartmovingreborn.world.LadderSearch;
 import io.github.kdy05.smartmovingreborn.world.LevelClimbTerrain;
+import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
@@ -25,12 +28,13 @@ import net.minecraft.world.level.block.VineBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import java.util.Set;
 
 /**
- * The own player's free and ladder climbing ({@code handleClimbing}, the ladder parts of {@code landMotion} and
- * the climbing input of {@code updateEntityActionState}). {@link SelfMoving} calls it at the original's points of
+ * The own player's free, ladder and ceiling climbing ({@code handleClimbing}, {@code handleCeilingClimbing}, the
+ * ladder parts of {@code landMotion} and the climbing input of {@code updateEntityActionState}). {@link SelfMoving} calls it at the original's points of
  * the tick; vanilla still moves the player. Climbing decides the vertical motion after the tick's movement,
  * before gravity, like the original: {@link ClimbLogic#STILL} holds still.
  * <p>
@@ -49,6 +53,7 @@ final class SelfClimbing {
 
     boolean wantClimbUp;
     boolean wantClimbDown;
+    private boolean wantClimbCeiling;
     /** Grab was pressed to crawl against a wall, not to climb it. */
     private boolean wantCrawlNotClimb;
     private boolean wantClimb;
@@ -92,6 +97,7 @@ final class SelfClimbing {
         resetClimbing();
         wantClimbUp = false;
         wantClimbDown = false;
+        wantClimbCeiling = false;
         wantCrawlNotClimb = false;
         wantClimb = false;
         jumpStarted = false;
@@ -134,13 +140,15 @@ final class SelfClimbing {
     // Input
 
     /**
-     * Whether the player wants to climb up or down this tick ({@code updateEntityActionState} 2357-2393).
+     * Whether the player wants to climb up or down, or along a ceiling, this tick ({@code updateEntityActionState}
+     * 2357-2394).
      *
      * @param wantCrawl the player wants to crawl, which climbing down gives way to
+     * @param sneaking  what vanilla sees as the sneak key, still from the last tick's sneaking
      * @param disabled  riding or sleeping
      */
     void updateInput(Button grab, Button sneak, Button jump, boolean forward, boolean wasCrawling,
-                     boolean wantCrawl, boolean disabled, SmartMovingClientConfig config) {
+                     boolean wantCrawl, boolean sneaking, boolean disabled, SmartMovingClientConfig config) {
         wantCrawlNotClimb = (wantCrawlNotClimb || grab.startPressed && !wasCrawling) && grab.pressed && forward
                 && state.crawling && player.horizontalCollision;
         boolean facedToSolidVine = count(1, true, false, true) > 0;
@@ -164,6 +172,7 @@ final class SelfClimbing {
                 || vineClimbing && jump.pressed && (!sneak.pressed || !facedToSolidVine)
                 && (!state.crawling || player.horizontalCollision) && (!state.sliding || player.horizontalCollision);
         wantClimbDown = wantClimb && !forward && !wantCrawl;
+        wantClimbCeiling = config.ceilingClimb.get() && grab.pressed && !wantCrawlNotClimb && !sneaking && !disabled;
     }
 
     /**
@@ -315,25 +324,32 @@ final class SelfClimbing {
     // Climbing
 
     /**
-     * After vanilla moved the player, before gravity ({@code handleClimbing}): the climbing speed of the base
-     * climbing mode on a ladder or vine, or of free climbing.
+     * After vanilla moved the player, before gravity ({@code handleClimbing}, then {@code handleCeilingClimbing}):
+     * the climbing speed of the base climbing mode on a ladder or vine, or of free climbing; then hanging on a
+     * ceiling, which takes over the vertical motion.
      *
-     * @param vanilla what vanilla made of the motion, which climbs vanilla's way on other climbable blocks
-     * @param fast    sprinting, which climbs faster
+     * @param vanilla            what vanilla made of the motion, which climbs vanilla's way on other climbable
+     *                           blocks
+     * @param fast               sprinting, which climbs faster
+     * @param crawlStartConflict crawling just started without free climbing, which a ceiling a block higher up
+     *                           ends ({@code climbCeilingCrawlingStartConflict})
      */
     Vec3 afterMove(Vec3 vanilla, boolean grabPressed, boolean fast, float speedFactor,
-                   SmartMovingClientConfig config) {
+                   boolean crawlStartConflict, SmartMovingClientConfig config) {
         handled = true;
         Vec3 motion = player.getDeltaMovement();
         double y = handleClimbing(motion.y, grabPressed, fast, speedFactor, config);
         Vec3 jumped = player.getDeltaMovement();
+        Vec3 result;
         if (jumped != motion) {
-            return jumped;
+            result = jumped;
+        } else if (!onLadder && !onVine && !state.climbing && player.onClimbable()) {
+            result = vanilla;
+        } else {
+            result = new Vec3(motion.x, y, motion.z);
         }
-        if (!onLadder && !onVine && !state.climbing && player.onClimbable()) {
-            return vanilla;
-        }
-        return new Vec3(motion.x, y, motion.z);
+        double ceiling = handleCeilingClimbing(crawlStartConflict, config);
+        return Double.isNaN(ceiling) ? result : new Vec3(result.x, ceiling, result.z);
     }
 
     /** After vanilla's travel: a tick without land movement (water, lava, gliding) ends climbing. */
@@ -466,6 +482,62 @@ final class SelfClimbing {
         return motionY;
     }
 
+    /**
+     * Hanging on a ceiling block from the config list in the player's column, one or two cells above the top of
+     * the box ({@code handleCeilingClimbing}, without the exhaustion of step 17).
+     *
+     * @return the vertical motion, or NaN if not hanging on a ceiling
+     */
+    private double handleCeilingClimbing(boolean crawlStartConflict, SmartMovingClientConfig config) {
+        if (!wantClimbCeiling || state.climbing || state.crawling && !crawlStartConflict || state.crawlClimbing) {
+            return Double.NaN;
+        }
+        // Starting to crawl, the original looked from its crawling box's top a block up: the standing top.
+        AABB box = player.getBoundingBox();
+        double reference = crawlStartConflict ? box.minY + player.getDimensions(Pose.STANDING).height : box.maxY;
+        int i = Mth.floor(player.getX());
+        int j = Mth.floor(reference);
+        int k = Mth.floor(player.getZ());
+        CeilingBlocks blocks = CeilingBlocks.of(config.ceilingClimbBlocks.get());
+        BlockState top = player.level().getBlockState(new BlockPos(i, j, k));
+        BlockState bottom = player.level().getBlockState(new BlockPos(i, j + 1, k));
+        boolean topCeiling = blocks.matches(top);
+        boolean bottomCeiling = blocks.matches(bottom);
+        if (!topCeiling && !bottomCeiling) {
+            return Double.NaN;
+        }
+        double speed = ClimbLogic.ceilingSpeed(reference, j + (bottomCeiling ? 2 : 1),
+                lowestSolidBetween(reference, reference + 0.6, 0.2));
+        if (Double.isNaN(speed)) {
+            return Double.NaN;
+        }
+        player.resetFallDistance();
+        state.ceilingClimbing = true;
+        handsEdge = topCeiling ? top : bottom;
+        return speed;
+    }
+
+    /**
+     * The lowest bottom of a block collision box touching the player's box, widened by {@code tolerance} on each
+     * side, between heights {@code minY} and {@code maxY}; {@code maxY} for none ({@code getMinPlayerSolidBetween}).
+     */
+    private double lowestSolidBetween(double minY, double maxY, double tolerance) {
+        AABB box = player.getBoundingBox();
+        AABB range = new AABB(box.minX - tolerance, minY, box.minZ - tolerance, box.maxX + tolerance, maxY,
+                box.maxZ + tolerance);
+        double result = maxY;
+        // Like the original's, boxes just touching the range count.
+        for (VoxelShape shape : player.level().getBlockCollisions(player, range.inflate(1.0E-7))) {
+            for (AABB solid : shape.toAabbs()) {
+                if (solid.maxX >= range.minX && solid.minX <= range.maxX && solid.maxY >= minY
+                        && solid.minY <= maxY && solid.maxZ >= range.minZ && solid.minZ <= range.maxZ) {
+                    result = Math.min(result, solid.minY);
+                }
+            }
+        }
+        return Math.max(result, minY);
+    }
+
     /** The climb back jumps by the original's type numbers 7 to 10. */
     private static final JumpType[] BACK_JUMPS = {JumpType.CLIMB_BACK_UP, JumpType.CLIMB_BACK_UP_HANDS_ONLY,
             JumpType.CLIMB_BACK_HEAD, JumpType.CLIMB_BACK_HEAD_HANDS_ONLY};
@@ -507,27 +579,32 @@ final class SelfClimbing {
 
     /**
      * After vanilla moved the player by its own motion: the climbing sounds, a step of the held blocks every
-     * block climbed, hands and feet in turn ({@code afterMoveEntity} 1644-1669).
+     * block climbed, hands and feet in turn, or of the ceiling every block and a bit along it
+     * ({@code afterMoveEntity} 1644-1669).
      */
     void afterMove(double distance) {
-        if (!state.climbing) {
+        if (!state.climbing && !state.ceilingClimbing) {
             return;
         }
-        distanceClimbed += (float) (distance * 1.2);
+        distanceClimbed += (float) (distance * (state.climbing ? 1.2 : 0.9));
         if (distanceClimbed <= nextClimbDistance) {
             return;
         }
         BlockState step;
-        if (handsEdge == null) {
-            step = feetEdge;
+        if (!state.climbing) {
+            step = handsEdge;
+        } else if (handsEdge == null) {
+            // The original stepped on cobblestone with nothing held.
+            step = feetEdge != null ? feetEdge : Blocks.COBBLESTONE.defaultBlockState();
         } else if (feetEdge == null) {
             step = handsEdge;
         } else {
             step = nextClimbDistance % 2 != 0 ? feetEdge : handsEdge;
         }
         nextClimbDistance++;
-        // The original stepped on cobblestone with nothing held.
-        SoundType sound = (step != null ? step : Blocks.COBBLESTONE.defaultBlockState()).getSoundType();
-        SmartMovingClient.playSound(player, sound.getStepSound(), sound.getVolume() * 0.15f, sound.getPitch());
+        if (step != null) {
+            SoundType sound = step.getSoundType();
+            SmartMovingClient.playSound(player, sound.getStepSound(), sound.getVolume() * 0.15f, sound.getPitch());
+        }
     }
 }

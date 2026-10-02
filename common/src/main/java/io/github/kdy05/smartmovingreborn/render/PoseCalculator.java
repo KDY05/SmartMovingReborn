@@ -272,6 +272,34 @@ final class PoseCalculator {
         }
     }
 
+    /**
+     * How far a ceiling climber's body twists with its hand over hand movement ({@code rotateY}), in radians; the
+     * whole body turns by it (see {@link SmartMovingRender#beforeRender}), the limbs and head turn back.
+     */
+    static float ceilingSway(float limbSwing, float limbSwingAmount) {
+        return Mth.cos(limbSwing * 0.7f) * 0.44f * factor(limbSwingAmount, 0, CRAWL_FULL_SPEED);
+    }
+
+    /**
+     * Climbing along a ceiling, from {@code SmartMovingModel.setRotationAngles}: both arms up, swinging with the
+     * horizontal distance, the legs swinging a little. Like the original, the head does not follow the view.
+     */
+    void ceilingClimb(float limbSwing, float limbSwingAmount) {
+        float distance = limbSwing * 0.7f;
+        float walkFactor = factor(limbSwingAmount, 0, CRAWL_FULL_SPEED);
+        float standFactor = factor(limbSwingAmount, CRAWL_FULL_SPEED, 0);
+        leftArm.xRot = (Mth.cos(distance) * 0.52f + PI) * walkFactor + PI * standFactor;
+        rightArm.xRot = (Mth.cos(distance + PI) * 0.52f - PI) * walkFactor - PI * standFactor;
+        leftLeg.xRot = -Mth.cos(distance) * 0.12f * walkFactor;
+        rightLeg.xRot = -Mth.cos(distance + PI) * 0.32f * walkFactor;
+        float sway = ceilingSway(limbSwing, limbSwingAmount);
+        rightArm.yRot = -sway;
+        leftArm.yRot = -sway;
+        rightLeg.yRot = -sway;
+        leftLeg.yRot = -sway;
+        head.yRot = -sway;
+    }
+
     /** Jumping off a climbing hold, from {@code SmartMovingModel.setRotationAngles}: both arms up. */
     void climbJump() {
         rightArm.xRot = PI * 9 / 8;

@@ -118,4 +118,20 @@ class ClimbLogicTest {
         assertEquals(0.2, ClimbLogic.smartSpeed(false, true, false, true));
         assertEquals(0, ClimbLogic.smartSpeed(false, false, true, true));
     }
+
+    @Test
+    void ceilingsPullUpHoldOrLetSinkByTheGapAbove() {
+        // The gap from the top to the ceiling block's cell top decides.
+        assertEquals(0.08, ClimbLogic.ceilingSpeed(1.85, 3, 2));
+        // Further below, pulled up; touching the ceiling, sinking a little against gravity.
+        assertEquals(0.12, ClimbLogic.ceilingSpeed(1.6, 3, 2));
+        assertEquals(0.04, ClimbLogic.ceilingSpeed(2, 3, 2));
+    }
+
+    @Test
+    void ceilingsOutOfReachDoNotHold() {
+        assertTrue(Double.isNaN(ClimbLogic.ceilingSpeed(1.0, 3, 2)));
+        // The ceiling block's cell is close, but nothing solid is within half a block above the top.
+        assertTrue(Double.isNaN(ClimbLogic.ceilingSpeed(1.8, 3, 2.4)));
+    }
 }

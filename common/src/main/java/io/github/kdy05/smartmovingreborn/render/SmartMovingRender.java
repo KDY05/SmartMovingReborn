@@ -34,6 +34,8 @@ public final class SmartMovingRender {
     private static final Set<HumanoidModel<?>> POSED = Collections.newSetFromMap(new WeakHashMap<>());
     /** How far below a head jumping player the ground is looked for ({@code getOverGroundHeight(5)}). */
     private static final double OVER_GROUND_RANGE = 5;
+    /** Moving less than this per tick, a ceiling climber faces the view instead of its movement. */
+    private static final double CEILING_STILL_DISTANCE = 0.015;
     /** Each player's whole-body rotation as last drawn. */
     private static final Map<Entity, OuterFade> OUTERS = new WeakHashMap<>();
     /** Each climber's limb settings as last drawn. */
@@ -76,11 +78,13 @@ public final class SmartMovingRender {
      * {@link OuterFade} for every frame). By default the body turns towards vanilla's body yaw, easing like
      * the original's ({@code fadeRotateAngleY} is on for every pose). A sliding or head jumping body faces the
      * direction it moves in ({@code currentHorizontalAngle}), the slide without easing; the head jump also
-     * tilts along its flight path, easing. The faded yaw replaces vanilla's only while drawing
-     * ({@link #afterRender}), since the original never stored it in the entity.
+     * tilts along its flight path, easing. A ceiling climber's body faces its movement too, easing. The faded
+     * yaw replaces vanilla's only while drawing ({@link #afterRender}), since the original never stored it in the
+     * entity.
      * <p>
-     * What the original did store ({@code rotatePlayer}): sliding, head jumping and side and back jumping set
-     * the body yaw to the view direction, from which vanilla turns the body on the next tick. A side or back
+     * What the original did store ({@code rotatePlayer}): sliding, head jumping, side and back jumping, climbing
+     * and ceiling climbing set the body yaw to the view direction, from which vanilla turns the body on the next
+     * tick. A side or back
      * jumping body so turns towards the view, and the legs turn towards the jump from there.
      * <p>
      * Not in the inventory screen, which sets its own rotations (the original skipped it the same way).
@@ -101,6 +105,16 @@ public final class SmartMovingRender {
             outer.update(0, false, Mth.rotLerp(partialTicks, player.yRotO, player.getYRot()) * Mth.DEG_TO_RAD, true,
                     time);
             outer.viewOffset = 0;
+        } else if (state.ceilingClimbing) {
+            // Faces the way it moves, or the view while (nearly) still, twisting with the hand over hand moves.
+            double dx = player.getX() - player.xo;
+            double dz = player.getZ() - player.zo;
+            float facing = dx * dx + dz * dz < CEILING_STILL_DISTANCE * CEILING_STILL_DISTANCE
+                    ? Mth.rotLerp(partialTicks, player.yRotO, player.getYRot()) * Mth.DEG_TO_RAD : horizontalAngle;
+            float sway = PoseCalculator.ceilingSway(player.walkAnimation.position(partialTicks),
+                    player.walkAnimation.speed(partialTicks));
+            outer.update(0, false, facing + sway, true, time);
+            outer.viewOffset = 0;
         } else {
             float bodyYaw = Mth.rotLerp(partialTicks, player.yBodyRotO, player.yBodyRot);
             outer.update(0, false, bodyYaw * Mth.DEG_TO_RAD, true, time);
@@ -108,6 +122,7 @@ public final class SmartMovingRender {
         }
 
         outer.bodyRot = state.sliding || state.headJumping || isAngleJumping(state) || isClimbPose(state)
+                || state.ceilingClimbing
                 ? Mth.rotLerp(partialTicks, player.yRotO, player.getYRot()) : player.yBodyRot;
         outer.bodyRotO = player.yBodyRotO;
         player.yBodyRot = outer.yaw * Mth.RAD_TO_DEG;
@@ -214,6 +229,11 @@ public final class SmartMovingRender {
             POSE.climbJump();
             swingArm(model, entity, state, netHeadYaw);
             POSE.applyTo(model);
+        } else if (state.ceilingClimbing) {
+            POSE.reset(model);
+            POSE.ceilingClimb(limbSwing, limbSwingAmount);
+            swingArm(model, entity, state, netHeadYaw);
+            POSE.applyTo(model);
         } else if (state.crawling) {
             POSE.reset(model);
             POSE.crawl(limbSwing, limbSwingAmount, netHeadYaw);
@@ -257,7 +277,7 @@ public final class SmartMovingRender {
         float shoulderYaw = netHeadYaw * Mth.DEG_TO_RAD;
         if (entity instanceof LocalPlayer) {
             OuterFade outer = OUTERS.get(entity);
-            if (state.sliding || state.headJumping || isClimbPose(state)) {
+            if (state.sliding || state.headJumping || isClimbPose(state) || state.ceilingClimbing) {
                 shoulderYaw = 0;
             } else if (outer != null) {
                 shoulderYaw = outer.viewOffset;

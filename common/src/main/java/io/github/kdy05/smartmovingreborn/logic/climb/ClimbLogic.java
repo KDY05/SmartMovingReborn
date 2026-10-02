@@ -198,4 +198,21 @@ public final class ClimbLogic {
     public static double sprintMinimumTickDistance(boolean up, boolean down, float upFactor, float downFactor) {
         return up ? 0.07 * upFactor : down ? 0.11 * downFactor : 0.07;
     }
+
+    /**
+     * The speed of hanging on a ceiling ({@code handleCeilingClimbing} 1246-1262): against gravity it pulls a
+     * player far below the ceiling up, holds one a little below it and lets one touching it sink a little.
+     *
+     * @param reference      the height the ceiling is looked for from, the box's top
+     * @param ceilingTop     the top of the block cell holding the ceiling block found, one or two cells up
+     * @param lowestSolid    the lowest bottom of a block collision within 0.6 above {@code reference}
+     * @return the vertical motion, or NaN if the ceiling is out of reach
+     */
+    public static double ceilingSpeed(double reference, double ceilingTop, double lowestSolid) {
+        double gap = ceilingTop - reference;
+        if (gap >= 1.9 || lowestSolid >= reference + 0.5) {
+            return Double.NaN;
+        }
+        return gap > 1.2 ? 0.12 : gap > 1.115 ? 0.08 : 0.04;
+    }
 }
