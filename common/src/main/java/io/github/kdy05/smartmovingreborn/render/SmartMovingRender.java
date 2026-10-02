@@ -9,6 +9,7 @@ import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -16,8 +17,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import java.util.Collections;
 import java.util.Map;
@@ -33,6 +36,8 @@ public final class SmartMovingRender {
     private static final double OVER_GROUND_RANGE = 5;
     /** Each player's whole-body rotation as last drawn. */
     private static final Map<Entity, OuterFade> OUTERS = new WeakHashMap<>();
+    /** Each climber's limb settings as last drawn. */
+    private static final Map<Entity, ClimbFade> CLIMB_FADES = new WeakHashMap<>();
 
     /** Set while the first person hand is drawn, which reuses the player model and must keep vanilla's pose. */
     private static boolean renderingHand;
@@ -54,6 +59,11 @@ public final class SmartMovingRender {
      */
     private static boolean isLying(Entity entity) {
         return entity instanceof Player player && MovingController.smallPose(player);
+    }
+
+    /** Climbing or crawl climbing, whose model faces the view ({@code isClimb || isCrawlClimb}). */
+    private static boolean isClimbPose(MovingState state) {
+        return state.climbing || state.crawlClimbing;
     }
 
     /** Whether the player is in a side or back jump ({@code SmartMoving.isAngleJumping}). */
@@ -87,13 +97,17 @@ public final class SmartMovingRender {
             outer.update(Mth.PI / 2 - verticalAngle(player), true, horizontalAngle, true, time);
         } else if (state.sliding) {
             outer.update(Mth.PI / 2, false, horizontalAngle, false, time);
+        } else if (isClimbPose(state)) {
+            outer.update(0, false, Mth.rotLerp(partialTicks, player.yRotO, player.getYRot()) * Mth.DEG_TO_RAD, true,
+                    time);
+            outer.viewOffset = 0;
         } else {
             float bodyYaw = Mth.rotLerp(partialTicks, player.yBodyRotO, player.yBodyRot);
             outer.update(0, false, bodyYaw * Mth.DEG_TO_RAD, true, time);
             outer.viewOffset = Mth.wrapDegrees(player.getYRot() - bodyYaw) * Mth.DEG_TO_RAD;
         }
 
-        outer.bodyRot = state.sliding || state.headJumping || isAngleJumping(state)
+        outer.bodyRot = state.sliding || state.headJumping || isAngleJumping(state) || isClimbPose(state)
                 ? Mth.rotLerp(partialTicks, player.yRotO, player.getYRot()) : player.yBodyRot;
         outer.bodyRotO = player.yBodyRotO;
         player.yBodyRot = outer.yaw * Mth.RAD_TO_DEG;
@@ -173,12 +187,34 @@ public final class SmartMovingRender {
 
     /** {@code HumanoidModel#setupAnim} TAIL: replaces vanilla's pose with the Smart Moving one. */
     public static void setupAnim(HumanoidModel<?> model, Entity entity, float limbSwing, float limbSwingAmount,
-                                 float netHeadYaw) {
+                                 float ageInTicks, float netHeadYaw, float headPitch) {
         MovingState state = stateOf(entity);
         if (renderingHand || state == null) {
             return;
         }
-        if (state.crawling) {
+        boolean crawlClimb = state.crawlClimbing || state.climbing && state.crawling;
+        boolean climbJump = state.climbJumping && entity instanceof Player jumper
+                && MotionStatistics.of(jumper).showsClimbJump();
+        if (state.climbing && !state.crawling && !state.crawlClimbing && !climbJump || crawlClimb) {
+            Player player = (Player) entity;
+            float partialTicks = ageInTicks - player.tickCount;
+            MotionStatistics statistics = MotionStatistics.of(player);
+            int handsType = state.handsVineClimbing && state.handsClimbType == 2 ? 1 : state.handsClimbType;
+            float[] limbs = CLIMB_FADES.computeIfAbsent(entity, e -> new ClimbFade())
+                    .update(ClimbFade.targets(handsType, state.feetClimbType), ageInTicks);
+            POSE.reset(model);
+            POSE.climb(headPitch, handsType, state.feetClimbType, limbs, state.handsVineClimbing,
+                    state.feetVineClimbing, statistics.verticalSpeed(partialTicks),
+                    statistics.verticalDistance(partialTicks), limbSwingAmount, limbSwing,
+                    statistics.distance(partialTicks), crawlClimb ? overGroundHeight(player) : Float.NaN);
+            swingArm(model, entity, state, netHeadYaw);
+            POSE.applyTo(model);
+        } else if (climbJump) {
+            POSE.reset(model);
+            POSE.climbJump();
+            swingArm(model, entity, state, netHeadYaw);
+            POSE.applyTo(model);
+        } else if (state.crawling) {
             POSE.reset(model);
             POSE.crawl(limbSwing, limbSwingAmount, netHeadYaw);
             swingArm(model, entity, state, netHeadYaw);
@@ -221,13 +257,33 @@ public final class SmartMovingRender {
         float shoulderYaw = netHeadYaw * Mth.DEG_TO_RAD;
         if (entity instanceof LocalPlayer) {
             OuterFade outer = OUTERS.get(entity);
-            if (state.sliding || state.headJumping) {
+            if (state.sliding || state.headJumping || isClimbPose(state)) {
                 shoulderYaw = 0;
             } else if (outer != null) {
                 shoulderYaw = outer.viewOffset;
             }
         }
         POSE.swingArm(arm, model.attackTime, shoulderYaw);
+    }
+
+    /** Once per client tick for every player: the movement statistics of the climbing animation. */
+    public static void tickPlayer(Player player) {
+        MovingState state = stateOf(player);
+        MotionStatistics.update(player, state != null && state.climbJumping);
+    }
+
+    /**
+     * How high the player's box is above the ground, at most {@link #OVER_GROUND_RANGE}
+     * ({@code getOverGroundHeight}): the highest block collision below it within that range.
+     */
+    private static float overGroundHeight(Player player) {
+        AABB box = player.getBoundingBox();
+        double ground = box.minY - OVER_GROUND_RANGE;
+        for (VoxelShape shape : player.level().getBlockCollisions(player,
+                new AABB(box.minX, box.minY - OVER_GROUND_RANGE, box.minZ, box.maxX, box.minY, box.maxZ))) {
+            ground = Math.max(ground, Math.min(shape.max(Direction.Axis.Y), box.minY));
+        }
+        return (float) (box.minY - ground);
     }
 
     /** The angle of the last tick's movement above the horizontal ({@code currentVerticalAngle}). */

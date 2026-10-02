@@ -176,6 +176,111 @@ final class PoseCalculator {
     }
 
     /**
+     * Climbing and crawl climbing, from {@code SmartMovingModel.setRotationAngles}: the body faces the view (see
+     * {@link SmartMovingRender#beforeRender}) and the head only looks up and down; the arms reach up and swing
+     * with the climbed height and sideways with the horizontal movement, the legs step with the height. Vine
+     * climbing spreads and shortens the arms and bends the legs; crawl climbing bends the body and legs by the
+     * height above the ground; feet without hands lean the body back.
+     *
+     * @param handsType          the hands' animation: 0 none, 1 hold, 2 reach up (1 for reaching up a vine)
+     * @param feetType           the feet's animation: 0 none, 1 step
+     * @param limbs              the arms' and legs' settings for these types, eased ({@link ClimbFade})
+     * @param verticalSpeed      the eased vertical speed ({@code currentVerticalSpeed})
+     * @param verticalDistance   the climbed height so far ({@code totalVerticalDistance})
+     * @param horizontalSpeed    vanilla's walking animation speed ({@code currentHorizontalSpeed})
+     * @param horizontalDistance vanilla's walking animation position ({@code totalHorizontalDistance})
+     * @param distance           the whole distance moved so far ({@code totalDistance})
+     * @param overGroundHeight   for crawl climbing, the box's height above the ground, at most 5, otherwise NaN
+     */
+    void climb(float headPitch, int handsType, int feetType, float[] limbs, boolean handsVine, boolean feetVine,
+               float verticalSpeed, float verticalDistance, float horizontalSpeed, float horizontalDistance,
+               float distance, float overGroundHeight) {
+        head.yRot = 0;
+        head.xRot = headPitch * DEGREES_TO_RADIANS;
+        leftLeg.order = RotationOrder.YZX;
+        rightLeg.order = RotationOrder.YZX;
+        float vertical = Math.min(0.5f, verticalSpeed);
+        float horizontal = Math.min(0.5f, horizontalSpeed);
+
+        float frequency = 0.6662f;
+        float handsUp = limbs[ClimbFade.HANDS_UP];
+        float handsUpOffset = limbs[ClimbFade.HANDS_UP_OFFSET];
+        // The original divided 0.3 by the vertical speed and multiplied it back, which gave no motion at all
+        // (NaN) while not moving up or down.
+        float feetUp = limbs[ClimbFade.FEET_UP];
+        float feetUpOffset = limbs[ClimbFade.FEET_UP_OFFSET];
+        float feetSide = limbs[ClimbFade.FEET_SIDE];
+
+        rightArm.xRot = Mth.cos(verticalDistance * frequency + PI) * vertical * handsUp + handsUpOffset;
+        leftArm.xRot = Mth.cos(verticalDistance * frequency) * vertical * handsUp + handsUpOffset;
+        rightArm.yRot = Mth.cos(horizontalDistance * frequency + PI / 2) * horizontal;
+        leftArm.yRot = Mth.cos(horizontalDistance * frequency) * horizontal;
+        if (handsVine) {
+            leftArm.yRot = leftArm.yRot * (1 + frequency) + PI / 4;
+            rightArm.yRot = rightArm.yRot * (1 + frequency) - PI / 4;
+            rightArm.yScale = Math.abs(Mth.cos(rightArm.xRot));
+            leftArm.yScale = Math.abs(Mth.cos(leftArm.xRot));
+        }
+
+        if (!feetVine) {
+            rightLeg.xRot = Mth.cos(verticalDistance * frequency) * feetUp + feetUpOffset;
+            leftLeg.xRot = Mth.cos(verticalDistance * frequency + PI) * feetUp + feetUpOffset;
+        }
+        rightLeg.zRot = -(Mth.cos(horizontalDistance * frequency) - 1) * horizontal * feetSide;
+        leftLeg.zRot = -(Mth.cos(horizontalDistance * frequency + PI / 2) + 1) * horizontal * feetSide;
+        if (feetVine) {
+            float bend = (Mth.cos(distance + PI) + 1) * PI / 16 + PI / 8;
+            rightLeg.xRot = -bend;
+            leftLeg.xRot = -bend;
+            float spread = Math.max(0, Mth.cos(distance - PI / 2)) * 0.09817477f;
+            leftLeg.zRot -= spread;
+            rightLeg.zRot += spread;
+            rightLeg.yScale = Math.abs(Mth.cos(rightLeg.xRot));
+            leftLeg.yScale = Math.abs(Mth.cos(leftLeg.xRot));
+        }
+
+        if (!Float.isNaN(overGroundHeight)) {
+            float height = overGroundHeight + 0.25f;
+            float bodyLength = 0.7f;
+            float legLength = 0.55f;
+            float bodyAngle = 0;
+            float legAngle = 0;
+            float legSpread = 0;
+            if (height < bodyLength) {
+                bodyAngle = Math.max(0, (float) Math.acos(height / bodyLength));
+                legAngle = PI / 2 - bodyAngle;
+                legSpread = PI / 16;
+            } else if (height < bodyLength + legLength) {
+                legAngle = Math.max(0, (float) Math.acos((height - bodyLength) / legLength));
+                legSpread = PI / 16 * (legAngle / 1.537f);
+            }
+            torso.xRot = bodyAngle;
+            rightShoulder.xRot = -bodyAngle;
+            leftShoulder.xRot = -bodyAngle;
+            head.xRot = -bodyAngle;
+            rightLeg.xRot = legAngle;
+            leftLeg.xRot = legAngle;
+            rightLeg.zRot = legSpread;
+            leftLeg.zRot = -legSpread;
+        }
+
+        if (handsType == 0 && feetType != 0) {
+            torso.xRot = 0.5f;
+            head.xRot -= 0.5f;
+            pelvic.xRot -= 0.5f;
+            torso.z = -6;
+        }
+    }
+
+    /** Jumping off a climbing hold, from {@code SmartMovingModel.setRotationAngles}: both arms up. */
+    void climbJump() {
+        rightArm.xRot = PI * 9 / 8;
+        leftArm.xRot = PI * 9 / 8;
+        rightArm.zRot = -PI / 16;
+        leftArm.zRot = PI / 16;
+    }
+
+    /**
      * The attack swing of a crawling, sliding or head jumping arm ({@code animateNonStandardWorking}, then
      * {@code animateWorkingArms}): the shoulder turns as if standing, ignoring the lying body, and the arm swings
      * from there. The original did this for the right arm only; 1.20.1 also swings the left one. The swing is

@@ -32,6 +32,7 @@ public abstract class HumanoidModelMixin {
     @Inject(method = "setupAnim(Lnet/minecraft/world/entity/LivingEntity;FFFFF)V", at = @At("TAIL"))
     private void smartmovingreborn$setupAnim(LivingEntity entity, float limbSwing, float limbSwingAmount,
                                              float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo ci) {
-        SmartMovingRender.setupAnim((HumanoidModel<?>) (Object) this, entity, limbSwing, limbSwingAmount, netHeadYaw);
+        SmartMovingRender.setupAnim((HumanoidModel<?>) (Object) this, entity, limbSwing, limbSwingAmount,
+                ageInTicks, netHeadYaw, headPitch);
     }
 }

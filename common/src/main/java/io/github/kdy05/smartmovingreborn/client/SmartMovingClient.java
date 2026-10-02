@@ -12,6 +12,7 @@ import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
 import io.github.kdy05.smartmovingreborn.render.ClimbDebug;
 import io.github.kdy05.smartmovingreborn.render.SlideParticles;
+import io.github.kdy05.smartmovingreborn.render.SmartMovingRender;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.state.StatePacketCodec;
 import net.minecraft.client.Camera;
@@ -102,6 +103,7 @@ public final class SmartMovingClient {
         sendState(minecraft);
         OTHER_STATES.keySet().removeIf(id -> minecraft.level.getEntity(id) == null);
         for (AbstractClientPlayer other : minecraft.level.players()) {
+            SmartMovingRender.tickPlayer(other);
             MovingState state = OTHER_STATES.get(other.getId());
             if (state != null && state.sliding) {
                 SlideParticles.spawn(other, other.getX() - other.xo, other.getZ() - other.zo, config());
