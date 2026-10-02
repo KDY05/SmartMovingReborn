@@ -228,7 +228,7 @@ public final class MovingController {
 
     /**
      * Replaces {@code Player#jumpFromGround} when true (original {@code jump}): Smart Moving jumps instead in
-     * {@link #travel}. Jumps in water or lava stay vanilla's until swimming is ported.
+     * {@link #travel}. Jumps in water or lava stay vanilla's until swimming is ported (step 14).
      */
     public static boolean jumpFromGround(Player player) {
         if (!isActiveSelf(player) || player.isInWater() || player.isInLava()) {
