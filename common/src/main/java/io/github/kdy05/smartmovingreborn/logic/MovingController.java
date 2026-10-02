@@ -57,6 +57,7 @@ public final class MovingController {
         if (!isActiveSelf(player)) {
             return;
         }
+        self.beforeTick();
     }
 
     /** {@code LocalPlayer#aiStep} TAIL (original {@code afterOnLivingUpdate} and {@code afterOnUpdate}). */
@@ -106,6 +107,7 @@ public final class MovingController {
         if (!isActiveSelf(player)) {
             return;
         }
+        self.beforeMove(type, movement);
     }
 
     /** {@code LocalPlayer#move} TAIL (original {@code afterMoveEntity}). */
@@ -113,6 +115,7 @@ public final class MovingController {
         if (!isActiveSelf(player)) {
             return;
         }
+        self.afterMove();
     }
 
     /**
@@ -178,7 +181,7 @@ public final class MovingController {
         return false;
     }
 
-    /** {@code Player#travel} TAIL: the damping of slides and gliding head jumps. */
+    /** {@code Player#travel} TAIL: the damping of slides and gliding head jumps, then wall jumps. */
     public static void afterTravel(Player player) {
         if (!isActiveSelf(player)) {
             return;
@@ -274,10 +277,19 @@ public final class MovingController {
         }
     }
 
-    /** {@code ServerGamePacketListenerImpl#handleMovePlayer} at every return on the server thread. */
+    /**
+     * {@code ServerGamePacketListenerImpl#handleMovePlayer} at every return on the server thread. A wall jump
+     * clears the fall distance ({@code SmartMovingServer.afterOnUpdate}); the client sends that state after
+     * the jump tick's movement, so it clears what the following movements add. The original also set the
+     * server's vertical motion, which the client's movement packets decide here.
+     */
     public static void afterHandleMovePlayer(ServerPlayer player) {
         if (!isActiveOnServer(player)) {
             return;
+        }
+        MovingState state = ServerNetworkHandler.getState(player);
+        if (state != null && state.wallJumping) {
+            player.fallDistance = 0;
         }
     }
 }

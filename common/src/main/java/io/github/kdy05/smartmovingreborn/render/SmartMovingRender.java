@@ -96,6 +96,14 @@ public final class SmartMovingRender {
         player.yBodyRotO = player.yBodyRot;
     }
 
+    /** The own player wall jumped towards {@code yaw} (degrees): the body faces it at once ({@code onStartWallJump}). */
+    public static void startWallJump(Entity player, float yaw) {
+        OuterFade outer = OUTERS.get(player);
+        if (outer != null) {
+            outer.yaw = yaw * Mth.DEG_TO_RAD;
+        }
+    }
+
     /** {@code PlayerRenderer#render} TAIL: puts back the body yaw {@link #beforeRender} replaced for drawing. */
     public static void afterRender(AbstractClientPlayer player) {
         OuterFade outer = OUTERS.get(player);

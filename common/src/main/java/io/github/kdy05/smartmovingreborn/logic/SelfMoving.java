@@ -8,8 +8,12 @@ import io.github.kdy05.smartmovingreborn.logic.jump.AngleJumpInput;
 import io.github.kdy05.smartmovingreborn.logic.jump.JumpEngine;
 import io.github.kdy05.smartmovingreborn.logic.jump.JumpSpeed;
 import io.github.kdy05.smartmovingreborn.logic.jump.JumpType;
+import io.github.kdy05.smartmovingreborn.logic.jump.WallJump;
+import io.github.kdy05.smartmovingreborn.logic.jump.WallJumpInput;
 import io.github.kdy05.smartmovingreborn.logic.slide.SlideLogic;
+import io.github.kdy05.smartmovingreborn.mixin.common.EntityAccessor;
 import io.github.kdy05.smartmovingreborn.render.SlideParticles;
+import io.github.kdy05.smartmovingreborn.render.SmartMovingRender;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
@@ -36,6 +40,7 @@ public final class SelfMoving {
     final MovingState state;
     private final ToggleState toggles = new ToggleState();
     private final AngleJumpInput angleJumps = new AngleJumpInput();
+    private final WallJumpInput wallJumps = new WallJumpInput();
     private boolean wasCrawling;
     private boolean groundSprinting;
     private boolean wasRunningWhenSprintStarted;
@@ -72,6 +77,15 @@ public final class SelfMoving {
     private float vanillaDamping;
     private float travelFriction;
     private boolean travelOnGround;
+    /** Touched a wall at the start of the tick ({@code wasCollidedHorizontally}). */
+    private boolean wasCollidedHorizontally;
+    /** The direction of the wall the last move ran into while wanting to wall jump, NaN for none. */
+    private float horizontalCollisionAngle;
+    /** Where the current move started and how far it was asked to go, NaN while not measuring. */
+    private double moveStartX;
+    private double moveStartZ;
+    private double moveX;
+    private double moveZ;
 
     SelfMoving(Player player, MovingState state) {
         this.player = player;
@@ -86,6 +100,7 @@ public final class SelfMoving {
         state.slow = false;
         state.fast = false;
         state.angleJumpType = 0;
+        state.wallJumping = false;
         wasCrawling = false;
         groundSprinting = false;
         wasRunningWhenSprintStarted = false;
@@ -105,8 +120,17 @@ public final class SelfMoving {
         aerodynamic = false;
         lifted = false;
         vanillaDamping = Float.NaN;
+        wasCollidedHorizontally = false;
+        horizontalCollisionAngle = Float.NaN;
+        moveStartX = Double.NaN;
         toggles.reset();
         angleJumps.reset();
+        wallJumps.reset();
+    }
+
+    /** At the start of the tick ({@code beforeOnUpdate}). */
+    void beforeTick() {
+        wasCollidedHorizontally = player.horizontalCollision;
     }
 
     /** Once per tick, before vanilla turns the input into movement (the original's {@code updateEntityActionState}). */
@@ -170,6 +194,14 @@ public final class SelfMoving {
         state.slow = wantSneak && wouldSneak;
         Vec3 motion = player.getDeltaMovement();
         standing = motion.x * motion.x + motion.z * motion.z < STANDING_SPEED_SQUARE;
+
+        state.wallJumping = false;
+        // Climbing (steps 11-12) and Smart Moving swimming (step 14) also rule it out; until then any water does.
+        boolean canWallJump = config.wallUpJump.get() && !state.headJumping && !player.onGround() && !flying
+                && !player.isInWater() && !player.isFallFlying();
+        wallJumps.update(canWallJump,
+                config.wallJumpDoubleClick.get() ? (int) Math.ceil(config.wallJumpDoubleClickTicks.get()) : 0,
+                player.onGround(), jump.pressed, jump.startPressed, player.horizontalCollision);
 
         boolean canAngleJump = !player.isSleeping() && onGround && !state.crawling;
         boolean canSideJump = config.angleJumpSide.get() && canAngleJump;
@@ -380,7 +412,7 @@ public final class SelfMoving {
                 : Double.NaN;
 
         Vec3 motion = player.getDeltaMovement();
-        float headJumpFactor = type.head() ? JumpEngine.headJumpFactor(config, headJumpCharge) : 1;
+        float headJumpFactor = type.base().head() ? JumpEngine.headJumpFactor(config, headJumpCharge) : 1;
         JumpEngine.Motion result = JumpEngine.motion(type, horizontalFactor, verticalFactor, chargeFactor,
                 headJumpFactor, maxHorizontalMotion, jumpMotionX, jumpMotionZ, motion.x, motion.z, angle);
         boolean vertical = !Double.isNaN(result.y());
@@ -388,7 +420,7 @@ public final class SelfMoving {
         if (vertical) {
             sprintJump = state.fast;
         }
-        if (type.head() && !state.headJumping) {
+        if (type.base().head() && !state.headJumping) {
             state.headJumping = true;
             // The original raised the bottom of the box by a block and left the model where it was. Here the
             // box shrinks from the feet and the model is drawn a block below it, so the player rises a block
@@ -440,12 +472,16 @@ public final class SelfMoving {
 
     /**
      * After vanilla's {@code travel}: replaces its horizontal damping with a slide's on the ground, or a gliding
-     * head jump's in the air ({@code landMotion} 757-786).
+     * head jump's in the air ({@code landMotion} 757-786); then wall jumps ({@code handleWallJumping}).
      */
     void afterTravel(SmartMovingClientConfig config) {
-        if (Float.isNaN(vanillaDamping)) {
-            return;
+        if (!Float.isNaN(vanillaDamping)) {
+            damp(config);
         }
+        handleWallJumping(config);
+    }
+
+    private void damp(SmartMovingClientConfig config) {
         float damping = vanillaDamping;
         if (state.sliding && travelOnGround) {
             damping = SlideLogic.damping(travelFriction, config.slideGlideFactor.get());
@@ -458,6 +494,74 @@ public final class SelfMoving {
             player.setDeltaMovement(motion.x * scale, motion.y, motion.z * scale);
         }
         vanillaDamping = Float.NaN;
+    }
+
+    /**
+     * Jumps off the wall this tick's movement ran into, if the player wants to and has not fallen too far: a
+     * head jump with grab held. Like the original, the view turns to the jump direction and the body faces it
+     * at once.
+     */
+    private void handleWallJumping(SmartMovingClientConfig config) {
+        if (!wallJumps.want() || Float.isNaN(horizontalCollisionAngle)) {
+            return;
+        }
+        boolean head = grabPressed;
+        float maximumFallDistance = head ? config.wallHeadJumpFallMaximumDistance.get()
+                : config.wallUpJumpFallMaximumDistance.get();
+        if (player.fallDistance > maximumFallDistance) {
+            return;
+        }
+        JumpType type = head ? (wasCollidedHorizontally ? JumpType.WALL_HEAD_TURN : JumpType.WALL_HEAD)
+                : (wasCollidedHorizontally ? JumpType.WALL_UP_TURN : JumpType.WALL_UP);
+        float angle = WallJump.jumpAngle(horizontalCollisionAngle, wasCollidedHorizontally, jumpMotionX,
+                jumpMotionZ, config.wallUpJumpOrthogonalTolerance.get());
+        if (Float.isNaN(angle) || !tryJump(type, angle, config)) {
+            return;
+        }
+        wallJumps.jumped(state.headJumping);
+        player.horizontalCollision = false;
+        player.setYRot(angle);
+        state.wallJumping = true;
+        player.fallDistance = 0;
+        SmartMovingRender.startWallJump(player, angle);
+    }
+
+    /**
+     * Before vanilla moves the player: while wanting to wall jump, notes where the move starts and how far it
+     * goes after a cobweb's slowdown, which vanilla applies first.
+     */
+    void beforeMove(MoverType type, Vec3 movement) {
+        if (type != MoverType.SELF || !wallJumps.want()) {
+            moveStartX = Double.NaN;
+            horizontalCollisionAngle = Float.NaN;
+            return;
+        }
+        Vec3 stuck = ((EntityAccessor) player).smartmovingreborn$getStuckSpeedMultiplier();
+        if (stuck.lengthSqr() > 1.0E-7) {
+            movement = movement.multiply(stuck);
+        }
+        moveStartX = player.getX();
+        moveStartZ = player.getZ();
+        moveX = movement.x;
+        moveZ = movement.z;
+    }
+
+    /**
+     * After vanilla moved the player: the wall the move ran into, from the directions it fell short in. The
+     * original simulated the move beforehand ({@code calculateSeparateCollisions}); vanilla's own result also
+     * follows its axis order, which differs from 1.7.10's.
+     */
+    void afterMove() {
+        if (Double.isNaN(moveStartX)) {
+            return;
+        }
+        double dx = player.getX() - moveStartX;
+        double dz = player.getZ() - moveStartZ;
+        moveStartX = Double.NaN;
+        boolean shortX = !Mth.equal(moveX, dx);
+        boolean shortZ = !Mth.equal(moveZ, dz);
+        horizontalCollisionAngle = WallJump.collisionAngle(shortX && moveX > dx, shortX && moveX < dx,
+                shortZ && moveZ > dz, shortZ && moveZ < dz);
     }
 
     /**
