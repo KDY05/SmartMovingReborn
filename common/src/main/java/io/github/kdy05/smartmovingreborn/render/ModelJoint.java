@@ -28,6 +28,11 @@ final class ModelJoint {
     float xOffset;
     float yOffset;
     float zOffset;
+    /**
+     * Turns from model space instead of the parent's rotation, keeping only where the parent puts the rotation
+     * point ({@code ignoreSuperRotation}).
+     */
+    boolean ignoreParentRotation;
 
     ModelJoint(ModelJoint parent) {
         this.parent = parent;
@@ -40,6 +45,7 @@ final class ModelJoint {
         order = RotationOrder.XYZ;
         xScale = yScale = zScale = 1;
         xOffset = yOffset = zOffset = 0;
+        ignoreParentRotation = false;
     }
 
     void setRotationPoint(float x, float y, float z) {
@@ -52,6 +58,9 @@ final class ModelJoint {
     private Matrix4f world() {
         Matrix4f matrix = parent == null ? new Matrix4f() : parent.world();
         matrix.translate(x / 16, y / 16, z / 16);
+        if (ignoreParentRotation) {
+            matrix.translation(matrix.getTranslation(new Vector3f()));
+        }
         rotate(matrix);
         return matrix.scale(xScale, yScale, zScale).translate(xOffset, yOffset, zOffset);
     }

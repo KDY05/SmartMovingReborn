@@ -7,9 +7,13 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.EffectRenderingInventoryScreen;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -145,6 +149,17 @@ public final class SmartMovingRender {
         }
     }
 
+    /**
+     * {@code HumanoidModel#setupAnim}, right after the walking swing: a side or back jump's arms replace it
+     * ({@code animateArmSwinging}), and the rest of vanilla's arm animation applies on top.
+     */
+    public static void afterArmSwing(HumanoidModel<?> model, Entity entity) {
+        MovingState state = stateOf(entity);
+        if (!renderingHand && state != null && !state.lying() && isAngleJumping(state)) {
+            PoseCalculator.angleJumpArms(model, state.angleJumpType);
+        }
+    }
+
     /** {@code HumanoidModel#setupAnim} TAIL: replaces vanilla's pose with the Smart Moving one. */
     public static void setupAnim(HumanoidModel<?> model, Entity entity, float limbSwing, float limbSwingAmount,
                                  float netHeadYaw) {
@@ -155,25 +170,53 @@ public final class SmartMovingRender {
         if (state.crawling) {
             POSE.reset(model);
             POSE.crawl(limbSwing, limbSwingAmount, netHeadYaw);
+            swingArm(model, entity, state, netHeadYaw);
             POSE.applyTo(model);
         } else if (state.sliding) {
             POSE.reset(model);
             POSE.slide(limbSwing, limbSwingAmount);
+            swingArm(model, entity, state, netHeadYaw);
             POSE.applyTo(model);
         } else if (state.headJumping) {
             OuterFade outer = OUTERS.get(entity);
             POSE.reset(model);
             POSE.headJump(outer == null ? Mth.PI / 2 - verticalAngle(entity) : outer.xRot, verticalAngle(entity),
                     armLimit(entity));
+            swingArm(model, entity, state, netHeadYaw);
             POSE.applyTo(model);
         } else if (isAngleJumping(state)) {
             POSE.reset(model);
             OuterFade outer = OUTERS.get(entity);
-            POSE.angleJump(model, state.angleJumpType, outer == null ? 0 : outer.viewOffset);
+            POSE.angleJumpLegs(model, state.angleJumpType, outer == null ? 0 : outer.viewOffset);
         } else {
             return;
         }
         POSED.add(model);
+    }
+
+    /**
+     * Swings the attacking arm of a lying pose while it attacks ({@link PoseCalculator#swingArm}). The original
+     * turned the shoulder in screen space ({@code workingAngle}), which in the third person view from behind
+     * comes to this: other players' arms face their view; the own player's face its view minus the body yaw
+     * stored in the entity, which sliding and head jumping set to the view, so there they face the body.
+     */
+    private static void swingArm(HumanoidModel<?> model, Entity entity, MovingState state, float netHeadYaw) {
+        if (model.attackTime <= 0) {
+            return;
+        }
+        LivingEntity living = (LivingEntity) entity;
+        HumanoidArm arm = living.swingingArm == InteractionHand.MAIN_HAND
+                ? living.getMainArm() : living.getMainArm().getOpposite();
+        float shoulderYaw = netHeadYaw * Mth.DEG_TO_RAD;
+        if (entity instanceof LocalPlayer) {
+            OuterFade outer = OUTERS.get(entity);
+            if (state.sliding || state.headJumping) {
+                shoulderYaw = 0;
+            } else if (outer != null) {
+                shoulderYaw = outer.viewOffset;
+            }
+        }
+        POSE.swingArm(arm, model.attackTime, shoulderYaw);
     }
 
     /** The angle of the last tick's movement above the horizontal ({@code currentVerticalAngle}). */

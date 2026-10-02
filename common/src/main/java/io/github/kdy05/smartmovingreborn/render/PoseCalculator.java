@@ -4,6 +4,7 @@ import io.github.kdy05.smartmovingreborn.render.ModelJoint.RotationOrder;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.PartPose;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.HumanoidArm;
 
 /**
  * The Smart Render skeleton ({@code SmartRenderModel}) and Smart Moving's poses on it ({@code SmartMovingModel}).
@@ -175,17 +176,65 @@ final class PoseCalculator {
     }
 
     /**
-     * Side and back jumps, from {@code SmartMovingModel.animateAngleJumping}: the legs turn towards the jump
-     * and spread, the arms lift to the side. It replaces only the walking swing of vanilla's pose, so the head
-     * and body stay vanilla's and only the limbs are written. The body turns towards the view direction (see
-     * {@link SmartMovingRender#beforeRender}), and the pelvis makes up what is left so that the jump angle counts
-     * from the view. Item holding, attack swing and arm bobbing on the arms are lost for the jump; the original
-     * kept them.
+     * The attack swing of a crawling, sliding or head jumping arm ({@code animateNonStandardWorking}, then
+     * {@code animateWorkingArms}): the shoulder turns as if standing, ignoring the lying body, and the arm swings
+     * from there. The original did this for the right arm only; 1.20.1 also swings the left one. The swing is
+     * vanilla 1.20.1's arm part of {@code setupAttackAnimation} (the original's was 1.7.10's), without the body
+     * twist, which the original left out for these poses. Its lift still follows the pose's head pitch.
+     *
+     * @param arm         the swinging arm
+     * @param attackTime  the swing's progress, above 0
+     * @param shoulderYaw the standing facing's yaw from the model's, in radians
+     */
+    void swingArm(HumanoidArm arm, float attackTime, float shoulderYaw) {
+        boolean right = arm == HumanoidArm.RIGHT;
+        ModelJoint shoulder = right ? rightShoulder : leftShoulder;
+        ModelJoint swinging = right ? rightArm : leftArm;
+        shoulder.ignoreParentRotation = true;
+        shoulder.xRot = 0;
+        shoulder.yRot = shoulderYaw;
+        shoulder.zRot = 0;
+        swinging.reset();
+
+        float bodyYaw = Mth.sin(Mth.sqrt(attackTime) * Mth.TWO_PI) * 0.2f * (right ? 1 : -1);
+        float progress = 1 - attackTime;
+        progress *= progress;
+        progress *= progress;
+        progress = 1 - progress;
+        float lift = Mth.sin(attackTime * PI) * -(head.xRot - 0.7f) * 0.75f;
+        swinging.xRot -= Mth.sin(progress * PI) * 1.2f + lift;
+        swinging.yRot += bodyYaw * 2;
+        swinging.zRot += Mth.sin(attackTime * PI) * -0.4f;
+    }
+
+    /**
+     * The arms of side and back jumps, from {@code SmartMovingModel.animateAngleJumping}: they lift to the side.
+     * Like the original's, they replace only vanilla's walking swing, so item holding, the attack swing and arm
+     * bobbing still apply on top.
+     *
+     * @param angleJumpType the jump direction in eighths of a turn, 2 (left) to 6 (right)
+     */
+    static void angleJumpArms(HumanoidModel<?> model, int angleJumpType) {
+        float angle = angleJumpType * PI / 4;
+        float backness = 1 - Math.abs(angle - PI) / (PI / 2);
+        float leftness = -Math.min(angle - PI, 0) / (PI / 2);
+        float rightness = Math.max(angle - PI, 0) / (PI / 2);
+        model.leftArm.zRot = -PI / 8 * rightness;
+        model.rightArm.zRot = PI / 8 * leftness;
+        model.leftArm.xRot = -PI / 4 * backness;
+        model.rightArm.xRot = -PI / 4 * backness;
+    }
+
+    /**
+     * The legs of side and back jumps, from {@code SmartMovingModel.animateAngleJumping}: they turn towards the
+     * jump and spread. The head and body stay vanilla's and only the legs are written. The body turns towards
+     * the view direction (see {@link SmartMovingRender#beforeRender}), and the pelvis makes up what is left so
+     * that the jump angle counts from the view.
      *
      * @param angleJumpType the jump direction in eighths of a turn, 2 (left) to 6 (right)
      * @param pelvisYaw     the view yaw minus the body's target yaw, in radians
      */
-    void angleJump(HumanoidModel<?> model, int angleJumpType, float pelvisYaw) {
+    void angleJumpLegs(HumanoidModel<?> model, int angleJumpType, float pelvisYaw) {
         float angle = angleJumpType * PI / 4;
         pelvic.yRot = pelvisYaw;
         float backness = 1 - Math.abs(angle - PI) / (PI / 2);
@@ -202,11 +251,6 @@ final class PoseCalculator {
         rightLeg.zRot = -PI / 16 * backness;
         leftLeg.applyTo(model.leftLeg);
         rightLeg.applyTo(model.rightLeg);
-
-        model.leftArm.zRot = -PI / 8 * rightness;
-        model.rightArm.zRot = PI / 8 * leftness;
-        model.leftArm.xRot = -PI / 4 * backness;
-        model.rightArm.xRot = -PI / 4 * backness;
     }
 
     /** 0 at {@code x0}, 1 at {@code x1}, linear and clamped in between (the original's {@code Factor}). */
