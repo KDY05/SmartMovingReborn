@@ -60,6 +60,8 @@ public final class SmartMovingClientConfig extends SmartMovingConfig {
 
     public final BooleanProperty debugState = section("Debugging", "Options for developing Smart Moving Reborn",
             off("move.debug.state", "Whether to show the Smart Moving states of yourself and the targeted player on the F3 debug screen"));
+    public final BooleanProperty debugClimb = off("move.debug.climb",
+            "Whether to show the free climbing holds around yourself as particles and on the F3 debug screen");
 
     @Override
     protected List<String> fileHeader() {

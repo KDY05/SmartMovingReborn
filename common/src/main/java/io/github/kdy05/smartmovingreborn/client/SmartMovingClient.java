@@ -9,6 +9,7 @@ import io.github.kdy05.smartmovingreborn.mixin.client.CameraAccessor;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
+import io.github.kdy05.smartmovingreborn.render.ClimbDebug;
 import io.github.kdy05.smartmovingreborn.render.SlideParticles;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.state.StatePacketCodec;
@@ -91,6 +92,11 @@ public final class SmartMovingClient {
         }
 
         updateLocalState(minecraft, player);
+        if (isActive()) {
+            ClimbDebug.tick(player, LOCAL_STATE, config());
+        } else {
+            ClimbDebug.reset();
+        }
         sendState(minecraft);
         OTHER_STATES.keySet().removeIf(id -> minecraft.level.getEntity(id) == null);
         for (AbstractClientPlayer other : minecraft.level.players()) {
@@ -230,9 +236,13 @@ public final class SmartMovingClient {
         }
     }
 
-    /** Adds Smart Moving lines to the left side of the F3 screen when {@code move.debug.state} is on. */
+    /** Adds Smart Moving lines to the left side of the F3 screen for {@code move.debug.state} and {@code move.debug.climb}. */
     public static void appendDebugInfo(List<String> lines) {
-        if (!config().debugState.get() || session == null) {
+        if (session == null) {
+            return;
+        }
+        ClimbDebug.appendDebugInfo(lines);
+        if (!config().debugState.get()) {
             return;
         }
         lines.add("");

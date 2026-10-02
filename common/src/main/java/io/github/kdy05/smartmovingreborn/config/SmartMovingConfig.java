@@ -529,4 +529,9 @@ public abstract class SmartMovingConfig extends PropertySet {
     public final FloatProperty usageFoodSpeedFactor = decreasing("move.usage.food.speed.factor", usageSpeedFactor::get,
             "Speed factor while eating food (>= 0 AND <= 1, defaults to \"move.usage.speed.factor\" when not present)");
     public final BooleanProperty usageSprint = off("move.usage.sprint", "To switch on/off generic sprinting while using an item");
+
+    /** Ladders and vines are free climbed instead of with a base climbing mode ({@code isFreeBaseClimb}). */
+    public boolean isFreeBaseClimb() {
+        return isFreeBaseClimb.getAsBoolean();
+    }
 }
