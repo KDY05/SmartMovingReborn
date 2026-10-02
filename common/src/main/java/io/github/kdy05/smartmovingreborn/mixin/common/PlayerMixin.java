@@ -6,6 +6,7 @@ import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -17,6 +18,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(Player.class)
 public abstract class PlayerMixin {
+    /** Whether the eye height was last refreshed for a Smart Moving lying pose. */
+    @Unique
+    private boolean smartmovingreborn$lyingEyes;
+
     private Player smartmovingreborn$self() {
         return (Player) (Object) this;
     }
@@ -42,6 +47,8 @@ public abstract class PlayerMixin {
 
     @Inject(method = "updatePlayerPose", at = @At("HEAD"), cancellable = true)
     private void smartmovingreborn$updatePlayerPose(CallbackInfo ci) {
+        smartmovingreborn$lyingEyes = MovingController.updateEyeHeight(smartmovingreborn$self(),
+                smartmovingreborn$lyingEyes);
         if (MovingController.updatePose(smartmovingreborn$self())) {
             ci.cancel();
         }
@@ -50,6 +57,15 @@ public abstract class PlayerMixin {
     @Inject(method = "getDimensions", at = @At("HEAD"), cancellable = true)
     private void smartmovingreborn$getDimensions(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
         EntityDimensions result = MovingController.dimensions(smartmovingreborn$self(), pose);
+        if (result != null) {
+            cir.setReturnValue(result);
+        }
+    }
+
+    @Inject(method = "getStandingEyeHeight", at = @At("HEAD"), cancellable = true)
+    private void smartmovingreborn$getStandingEyeHeight(Pose pose, EntityDimensions dimensions,
+                                                        CallbackInfoReturnable<Float> cir) {
+        Float result = MovingController.standingEyeHeight(smartmovingreborn$self(), pose);
         if (result != null) {
             cir.setReturnValue(result);
         }

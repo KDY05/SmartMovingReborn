@@ -20,6 +20,15 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class MovingController {
     /**
+     * The eye height while lying for a Smart Moving move. The original's eyes were 0.62 above the box's bottom,
+     * above this port's 0.6 high box; 0.55 keeps them inside it, so that a head jump against a ceiling does not
+     * count as suffocating. The view can still look into that ceiling: looking up at a slant, the camera's near
+     * plane (0.05 ahead) reaches up to {@code sqrt(0.05² + (0.05 tan(fov / 2))²)} above the eyes, 0.061 at a
+     * field of view of 70 and more as it widens.
+     */
+    private static final float LYING_EYE_HEIGHT = 0.55f;
+
+    /**
      * The client's own player, set when it is constructed. Always null on a dedicated server, so the hooks in
      * common classes never reach {@link SmartMovingClient} there.
      */
@@ -243,11 +252,36 @@ public final class MovingController {
      * standing up.
      */
     public static boolean suppressSwimAmount(Entity entity) {
-        if (!(entity instanceof Player player)) {
-            return false;
-        }
+        return entity instanceof Player player && lying(player);
+    }
+
+    /** Whether {@code player} lies in {@code Pose.SWIMMING} for a Smart Moving move. */
+    private static boolean lying(Player player) {
         MovingState state = stateOf(player);
         return state != null && state.lying();
+    }
+
+    /**
+     * Overrides {@code Player#getStandingEyeHeight} when non-null. Lying for a Smart Moving move, the eyes sit
+     * {@link #LYING_EYE_HEIGHT} above the box's bottom instead of vanilla's 0.4 for swimming.
+     */
+    public static Float standingEyeHeight(Player player, Pose pose) {
+        return pose == Pose.SWIMMING && lying(player) ? LYING_EYE_HEIGHT : null;
+    }
+
+    /**
+     * {@code Player#updatePlayerPose} HEAD: vanilla caches the eye height and only recomputes it when the size
+     * changes, which a switch between vanilla swimming and a Smart Moving move in the same pose does not.
+     *
+     * @param wasLying whether the cached eye height is a lying move's
+     * @return whether the eye height now is a lying move's
+     */
+    public static boolean updateEyeHeight(Player player, boolean wasLying) {
+        boolean lying = lying(player);
+        if (lying != wasLying) {
+            player.refreshDimensions();
+        }
+        return lying;
     }
 
     /**
