@@ -195,6 +195,15 @@ final class SelfFlying {
         return true;
     }
 
+    /**
+     * Whether to draw the flying pose ({@code doFlyingAnimation}): flying vanilla's way or Smart Moving's, with
+     * Smart Moving's flying or {@code move.levitate.animation} on; not for a spectator.
+     */
+    boolean animation(SmartMovingClientConfig config) {
+        return player.getAbilities().flying && (flyEnabled(config)
+                || config.levitateAnimation.get() && !player.isSpectator());
+    }
+
     /** At the start of the tick ({@code beforeOnLivingUpdate}). */
     void beforeTick() {
         wasAbilityFlying = player.getAbilities().flying;

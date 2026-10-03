@@ -255,6 +255,74 @@ final class PoseCalculator {
     }
 
     /**
+     * The flyer's tilt from upright ({@code bipedOuter.rotateAngleX} of the flying pose): along the way it moves,
+     * the more the faster, upright while hovering. Rising with jump held tilts the same as sinking.
+     *
+     * @param speed         the eased whole speed ({@code currentSpeed})
+     * @param verticalAngle the movement's angle above the horizontal, -pi/2 to pi/2
+     */
+    static float flyTilt(boolean jumping, float speed, float verticalAngle) {
+        float angle = jumping ? Math.abs(verticalAngle) : verticalAngle;
+        return (PI / 2 - angle) * factor(speed, 0, 1);
+    }
+
+    /**
+     * Flying, from {@code SmartMovingModel.setRotationAngles}: lying along the flight with the arms stretched
+     * ahead, or upright while hovering with the arms out to the sides, swaying with time; the legs paddle a
+     * little. The body already faces its movement (see {@link SmartMovingRender#beforeRender}).
+     *
+     * @param tilt       the body's tilt, easing towards {@link #flyTilt} ({@link OuterFade})
+     * @param target     the unfaded tilt, which the head turns half of back up
+     * @param speed      the eased whole speed ({@code currentSpeed})
+     * @param distance   the whole distance moved so far ({@code totalDistance})
+     * @param ageInTicks the time in ticks ({@code totalTime})
+     */
+    void fly(float tilt, float target, float speed, float distance, float ageInTicks) {
+        float stroke = distance * 0.08f;
+        float walkFactor = factor(speed, 0, 1);
+        float standFactor = factor(speed, 1, 0);
+        float time = ageInTicks * 0.15f;
+
+        outer.xRot = tilt;
+        // Set before the original faded the outer joint, so from the unfaded tilt.
+        head.xRot = -target / 2;
+
+        rightArm.order = RotationOrder.XZY;
+        leftArm.order = RotationOrder.XZY;
+        rightArm.yRot = Mth.cos(time) * PI / 8 * standFactor;
+        leftArm.yRot = Mth.cos(time) * PI / 8 * standFactor;
+        rightArm.zRot = (Mth.cos(stroke + PI) * 0.09817477f + PI * 7 / 8) * walkFactor + PI / 2 * standFactor;
+        leftArm.zRot = (Mth.cos(stroke) * 0.09817477f - PI * 7 / 8) * walkFactor - PI / 2 * standFactor;
+
+        rightLeg.xRot = Mth.cos(stroke) * 0.09817477f * walkFactor + Mth.cos(time + PI) * 0.09817477f * standFactor;
+        leftLeg.xRot = Mth.cos(stroke + PI) * 0.09817477f * walkFactor + Mth.cos(time) * 0.09817477f * standFactor;
+        rightLeg.zRot = 0.09817477f;
+        leftLeg.zRot = -0.09817477f;
+    }
+
+    /**
+     * Falling, from {@code SmartMovingModel.setRotationAngles}: upright, the arms circling and the legs kicking
+     * with the whole distance fallen. Like the original's other poses, the head does not follow the view.
+     *
+     * @param distance the whole distance moved so far ({@code totalDistance})
+     */
+    void fall(float distance) {
+        float stroke = distance * 0.1f;
+
+        rightArm.order = RotationOrder.XZY;
+        leftArm.order = RotationOrder.XZY;
+        rightArm.yRot = Mth.cos(stroke + PI / 2) * PI / 4;
+        leftArm.yRot = Mth.cos(stroke + PI / 2) * PI / 4;
+        rightArm.zRot = Mth.cos(stroke) * PI / 4 + PI / 2;
+        leftArm.zRot = Mth.cos(stroke) * PI / 4 - PI / 2;
+
+        rightLeg.xRot = Mth.cos(stroke + PI + PI / 2) * PI / 8 + PI / 16;
+        leftLeg.xRot = Mth.cos(stroke + PI / 2) * PI / 8 + PI / 16;
+        rightLeg.zRot = Mth.cos(stroke) * PI / 8 + PI / 16;
+        leftLeg.zRot = Mth.cos(stroke) * PI / 8 - PI / 16;
+    }
+
+    /**
      * Head jumping, from {@code SmartMovingModel.setRotationAngles}: the body tilts along the flight path, the
      * arms reach ahead and close in as the flight turns down, and the limbs bend while flying flat. The body
      * already faces the flight's direction (see {@link SmartMovingRender#beforeRender}). The head stays in line

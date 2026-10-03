@@ -155,6 +155,11 @@ public final class MovingController {
         return self.shiftKeyDown(SmartMovingReborn.CLIENT_CONFIG);
     }
 
+    /** Whether {@code player} is the own player flying Smart Moving's way ({@code isFlying}). */
+    public static boolean smartFlying(Player player) {
+        return self != null && player == self.player && SmartMovingClient.isActive() && self.smartFlying();
+    }
+
     /** Whether the own player's box is a flyer's, small and a block up ({@link MovingState#smallFlying}). */
     public static boolean smallFlying() {
         return self != null && SmartMovingClient.isActive() && self.flyingBox();

@@ -75,6 +75,26 @@ public final class SmartMovingRender {
         return state.swimming && !state.dipping;
     }
 
+    /**
+     * Flying with its own pose ({@code isFlying}, from {@code doFlyingAnimation}), unless a move before it in the
+     * original's order poses the player: climbing, swimming, diving, crawling or sliding.
+     */
+    private static boolean isFlyPose(MovingState state) {
+        return state.flyingAnimation && !isClimbPose(state) && !state.ceilingClimbing && !isSwimPose(state)
+                && !state.diving && !state.crawling && !state.sliding;
+    }
+
+    /**
+     * Whether the body faces the view and vanilla turns it from there ({@code rotatePlayer}): sliding, head
+     * jumping, side and back jumping, climbing, ceiling climbing, swimming, diving, and the own player flying
+     * Smart Moving's way (the original did not send that).
+     */
+    private static boolean facesView(Entity entity, MovingState state) {
+        return state.sliding || state.headJumping || isAngleJumping(state) || isClimbPose(state)
+                || state.ceilingClimbing || state.swimming || state.diving
+                || entity instanceof Player player && MovingController.smartFlying(player);
+    }
+
     /** Whether the player is in a side or back jump ({@code SmartMoving.isAngleJumping}). */
     private static boolean isAngleJumping(MovingState state) {
         return state.angleJumpType > 1 && state.angleJumpType < 7;
@@ -86,14 +106,13 @@ public final class SmartMovingRender {
      * the original's ({@code fadeRotateAngleY} is on for every pose). A sliding or head jumping body faces the
      * direction it moves in ({@code currentHorizontalAngle}), the slide without easing; the head jump also
      * tilts along its flight path, easing. A ceiling climber's body faces its movement too, easing, and so do a
-     * swimmer's and a diver's, which lie down, easing. The faded
+     * swimmer's, a diver's and a flyer's, which lie down, easing. The faded
      * yaw replaces vanilla's only while drawing ({@link #afterRender}), since the original never stored it in the
      * entity.
      * <p>
-     * What the original did store ({@code rotatePlayer}): sliding, head jumping, side and back jumping, climbing,
-     * ceiling climbing, swimming and diving set the body yaw to the view direction, from which vanilla turns the body on the next
-     * tick. A side or back
-     * jumping body so turns towards the view, and the legs turn towards the jump from there.
+     * What the original did store ({@code rotatePlayer}, see {@link #facesView}): those moves set the body yaw to
+     * the view direction, from which vanilla turns the body on the next tick. A side or back jumping body so turns
+     * towards the view, and the legs turn towards the jump from there.
      * <p>
      * Not in the inventory screen, which sets its own rotations (the original skipped it the same way).
      */
@@ -121,6 +140,11 @@ public final class SmartMovingRender {
             outer.update(PoseCalculator.diveTilt(state.levitating, state.jumping, verticalAngle(player)), true,
                     horizontalAngle, true, time);
             outer.viewOffset = 0;
+        } else if (isFlyPose(state)) {
+            // Like diving, the original's choice of the view only applied before moving at all.
+            outer.update(PoseCalculator.flyTilt(state.jumping, MotionStatistics.of(player).speed(partialTicks),
+                    verticalAngle(player)), true, horizontalAngle, true, time);
+            outer.viewOffset = 0;
         } else if (state.headJumping) {
             outer.update(Mth.PI / 2 - verticalAngle(player), true, horizontalAngle, true, time);
         } else if (state.sliding) {
@@ -145,8 +169,7 @@ public final class SmartMovingRender {
             outer.viewOffset = Mth.wrapDegrees(player.getYRot() - bodyYaw) * Mth.DEG_TO_RAD;
         }
 
-        outer.bodyRot = state.sliding || state.headJumping || isAngleJumping(state) || isClimbPose(state)
-                || state.ceilingClimbing || state.swimming || state.diving
+        outer.bodyRot = facesView(player, state)
                 ? Mth.rotLerp(partialTicks, player.yRotO, player.getYRot()) : player.yBodyRot;
         outer.bodyRotO = player.yBodyRotO;
         player.yBodyRot = outer.yaw * Mth.RAD_TO_DEG;
@@ -285,11 +308,29 @@ public final class SmartMovingRender {
             POSE.slide(limbSwing, limbSwingAmount);
             swingArm(model, entity, state, netHeadYaw);
             POSE.applyTo(model);
+        } else if (isFlyPose(state)) {
+            Player player = (Player) entity;
+            float partialTicks = ageInTicks - player.tickCount;
+            MotionStatistics statistics = MotionStatistics.of(player);
+            float speed = statistics.speed(partialTicks);
+            float target = PoseCalculator.flyTilt(state.jumping, speed, verticalAngle(entity));
+            OuterFade outer = OUTERS.get(entity);
+            POSE.reset(model);
+            POSE.fly(outer == null ? target : outer.xRot, target, speed, statistics.distance(partialTicks),
+                    ageInTicks);
+            swingArm(model, entity, state, netHeadYaw);
+            POSE.applyTo(model);
         } else if (state.headJumping) {
             OuterFade outer = OUTERS.get(entity);
             POSE.reset(model);
             POSE.headJump(outer == null ? Mth.PI / 2 - verticalAngle(entity) : outer.xRot, verticalAngle(entity),
                     armLimit(entity));
+            swingArm(model, entity, state, netHeadYaw);
+            POSE.applyTo(model);
+        } else if (state.fallingAnimation) {
+            Player player = (Player) entity;
+            POSE.reset(model);
+            POSE.fall(MotionStatistics.of(player).distance(ageInTicks - player.tickCount));
             swingArm(model, entity, state, netHeadYaw);
             POSE.applyTo(model);
         } else if (isAngleJumping(state)) {
@@ -306,8 +347,8 @@ public final class SmartMovingRender {
      * Swings the attacking arm of a lying pose while it attacks ({@link PoseCalculator#swingArm}). The original
      * turned the shoulder in screen space ({@code workingAngle}), which in the third person view from behind
      * comes to this: other players' arms face their view; the own player's face its view minus the body yaw
-     * stored in the entity, which sliding, head jumping, climbing, swimming and diving set to the view, so there
-     * they face the body.
+     * stored in the entity, which sliding, head jumping, climbing, swimming, diving and Smart Moving's flying set
+     * to the view, so there they face the body.
      */
     private static void swingArm(HumanoidModel<?> model, Entity entity, MovingState state, float netHeadYaw) {
         if (model.attackTime <= 0) {
@@ -319,8 +360,7 @@ public final class SmartMovingRender {
         float shoulderYaw = netHeadYaw * Mth.DEG_TO_RAD;
         if (entity instanceof LocalPlayer) {
             OuterFade outer = OUTERS.get(entity);
-            if (state.sliding || state.headJumping || isClimbPose(state) || state.ceilingClimbing || state.swimming
-                    || state.diving) {
+            if (facesView(entity, state) && !isAngleJumping(state)) {
                 shoulderYaw = 0;
             } else if (outer != null) {
                 shoulderYaw = outer.viewOffset;

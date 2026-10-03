@@ -686,11 +686,15 @@ public final class SelfMoving {
 
     /**
      * At the end of the tick (the original's {@code afterOnLivingUpdate} and {@code afterOnUpdate}): flying on
-     * after touching the ground, the wall counter, the body turn while small, slide and swim particles, the
+     * after touching the ground, the flying and falling animations ({@code doFlyingAnimation},
+     * {@code doFallingAnimation}; elytra gliding and riptide spins keep vanilla's), the wall counter, the body turn while small, slide and swim particles, the
      * current taken back while swimming, and the perspective.
      */
     void afterTick(SmartMovingClientConfig config) {
         flying.afterTick(sneakInput, grabPressed, config);
+        state.flyingAnimation = flying.animation(config);
+        state.fallingAnimation = config.fallAnimation.get() && !player.onGround() && !vanillaOverride()
+                && player.fallDistance > config.fallAnimationDistanceMinimum.get();
         collidedHorizontallyTicks = player.horizontalCollision ? collidedHorizontallyTicks + 1 : 0;
         turnBodyWhileSmall(state.swimming || state.diving || state.dipping || state.crawling);
         if (state.sliding) {
