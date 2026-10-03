@@ -189,9 +189,10 @@ final class SelfSwimming {
             return false;
         }
         landTick = true;
-        if (replacesVanilla(config) && !inWater() && !moving.jumpedThisTick()) {
+        if (replacesVanilla(config) && !inWater() && !player.isInLava() && !moving.jumpedThisTick()) {
             // Vanilla still finds water around a box whose bottom is just under the surface, where 1.7.10 did not
             // and so did not jump in water: rising out of shallow water, that jump would carry the player higher.
+            // Lava stays vanilla's, jump included, like the original's handleLava.
             player.setDeltaMovement(player.getDeltaMovement().subtract(vanillaJump));
         }
         if (!moving.grabPressed()) {
