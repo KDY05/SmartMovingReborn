@@ -1,0 +1,9 @@
+{
+  "key.categories.smartmovingreborn": "Smart Moving",
+  "key.smartmovingreborn.grab": "잡기",
+  "key.smartmovingreborn.toggle": "Smart Moving 켜기/끄기",
+  "chat.smartmovingreborn.enabled": "Smart Moving 켜짐",
+  "chat.smartmovingreborn.disabled": "Smart Moving 꺼짐",
+  "chat.smartmovingreborn.server_missing": "Smart Moving 꺼짐: 이 서버에 Smart Moving Reborn이 설치되어 있지 않습니다",
+  "chat.smartmovingreborn.server_config": "Smart Moving 서버 설정을 사용합니다"
+}
