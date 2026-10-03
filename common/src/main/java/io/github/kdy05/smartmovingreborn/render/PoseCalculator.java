@@ -2,6 +2,7 @@ package io.github.kdy05.smartmovingreborn.render;
 
 import io.github.kdy05.smartmovingreborn.render.ModelJoint.RotationOrder;
 import net.minecraft.client.model.HumanoidModel;
+import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.geom.PartPose;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
@@ -527,6 +528,31 @@ final class PoseCalculator {
         swinging.xRot -= Mth.sin(progress * PI) * 1.2f + lift;
         swinging.yRot += bodyYaw * 2;
         swinging.zRot += Mth.sin(attackTime * PI) * -0.4f;
+    }
+
+    /**
+     * Aiming a bow or crossbow in a lying, climbing or swimming pose ({@code animateNonStandardBowAiming}): both
+     * shoulders turn as if standing, ignoring the pose, and the arms take vanilla's aiming pose from there. Like
+     * the original's, it aims level, whatever the view's pitch.
+     *
+     * @param shoulderYaw the standing facing's yaw from the model's, in radians
+     * @param right       the right arm's vanilla aiming pose
+     * @param left        the left arm's vanilla aiming pose
+     */
+    void aimArms(float shoulderYaw, ModelPart right, ModelPart left) {
+        aimArm(rightShoulder, rightArm, shoulderYaw, right);
+        aimArm(leftShoulder, leftArm, shoulderYaw, left);
+    }
+
+    private static void aimArm(ModelJoint shoulder, ModelJoint arm, float shoulderYaw, ModelPart pose) {
+        shoulder.ignoreParentRotation = true;
+        shoulder.xRot = 0;
+        shoulder.yRot = shoulderYaw;
+        shoulder.zRot = 0;
+        arm.reset();
+        arm.xRot = pose.xRot;
+        arm.yRot = pose.yRot;
+        arm.zRot = pose.zRot;
     }
 
     /**

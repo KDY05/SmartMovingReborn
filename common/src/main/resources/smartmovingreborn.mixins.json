@@ -20,6 +20,7 @@
     "client.DebugScreenOverlayMixin",
     "client.ElytraLayerMixin",
     "client.HumanoidArmorLayerMixin",
+    "client.HumanoidModelInvoker",
     "client.HumanoidModelMixin",
     "client.LivingEntityRendererMixin",
     "client.LocalPlayerMixin",

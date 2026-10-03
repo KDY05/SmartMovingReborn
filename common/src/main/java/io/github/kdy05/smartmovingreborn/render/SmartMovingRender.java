@@ -5,6 +5,8 @@ import io.github.kdy05.smartmovingreborn.logic.MovingController;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.EffectRenderingInventoryScreen;
+import io.github.kdy05.smartmovingreborn.mixin.client.HumanoidModelInvoker;
+import net.minecraft.client.model.AnimationUtils;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -302,24 +304,24 @@ public final class SmartMovingRender {
                     state.feetVineClimbing, statistics.verticalSpeed(partialTicks),
                     statistics.verticalDistance(partialTicks), limbSwingAmount, limbSwing,
                     statistics.distance(partialTicks), crawlClimb ? overGroundHeight(player) : Float.NaN);
-            swingArm(model, entity, state, netHeadYaw);
+            workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
         } else if (climbJump) {
             POSE.reset(model);
             POSE.climbJump();
-            swingArm(model, entity, state, netHeadYaw);
+            workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
         } else if (state.ceilingClimbing) {
             POSE.reset(model);
             POSE.ceilingClimb(limbSwing, limbSwingAmount);
-            swingArm(model, entity, state, netHeadYaw);
+            workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
         } else if (isSwimPose(state)) {
             OuterFade outer = OUTERS.get(entity);
             POSE.reset(model);
             POSE.swim(limbSwing, limbSwingAmount, ageInTicks,
                     outer == null ? PoseCalculator.swimTilt(limbSwingAmount) : outer.xRot);
-            swingArm(model, entity, state, netHeadYaw);
+            workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
         } else if (state.diving) {
             Player player = (Player) entity;
@@ -329,19 +331,19 @@ public final class SmartMovingRender {
             POSE.reset(model);
             POSE.dive(outer == null ? PoseCalculator.diveTilt(state.levitating, state.jumping, verticalAngle(entity))
                     : outer.xRot, statistics.speed(partialTicks), statistics.distance(partialTicks));
-            swingArm(model, entity, state, netHeadYaw);
+            workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
         } else if (state.crawling) {
             POSE.reset(model);
             // The original rolled the head by the view's offset from the body yaw before easing.
             OuterFade outer = OUTERS.get(entity);
             POSE.crawl(limbSwing, limbSwingAmount, outer == null ? netHeadYaw * Mth.DEG_TO_RAD : outer.headOffset);
-            swingArm(model, entity, state, netHeadYaw);
+            workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
         } else if (state.sliding) {
             POSE.reset(model);
             POSE.slide(limbSwing, limbSwingAmount);
-            swingArm(model, entity, state, netHeadYaw);
+            workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
         } else if (isFlyPose(state)) {
             Player player = (Player) entity;
@@ -353,20 +355,20 @@ public final class SmartMovingRender {
             POSE.reset(model);
             POSE.fly(outer == null ? target : outer.xRot, target, speed, statistics.distance(partialTicks),
                     ageInTicks);
-            swingArm(model, entity, state, netHeadYaw);
+            workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
         } else if (state.headJumping) {
             OuterFade outer = OUTERS.get(entity);
             POSE.reset(model);
             POSE.headJump(outer == null ? Mth.PI / 2 - verticalAngle(entity) : outer.xRot, verticalAngle(entity),
                     armLimit(entity));
-            swingArm(model, entity, state, netHeadYaw);
+            workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
         } else if (state.fallingAnimation) {
             Player player = (Player) entity;
             POSE.reset(model);
             POSE.fall(MotionStatistics.of(player).distance(ageInTicks - player.tickCount));
-            swingArm(model, entity, state, netHeadYaw);
+            workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
         } else if (isAngleJumping(state)) {
             POSE.reset(model);
@@ -410,19 +412,21 @@ public final class SmartMovingRender {
     }
 
     /**
-     * Swings the attacking arm of a lying pose while it attacks ({@link PoseCalculator#swingArm}). The original
-     * turned the shoulder in screen space ({@code workingAngle}), which in the third person view from behind
-     * comes to this: other players' arms face their view; the own player's face its view minus the body yaw
-     * stored in the entity, which sliding, head jumping, climbing, swimming, diving and Smart Moving's flying set
-     * to the view, so there they face the body.
+     * The arms' work in a Smart Moving pose: aiming a bow or crossbow ({@link PoseCalculator#aimArms}), and
+     * swinging the attacking arm while it attacks ({@link PoseCalculator#swingArm}). The original turned the
+     * shoulders in screen space ({@code workingAngle}), which in the third person view from behind comes to
+     * this: other players' arms face their view; the own player's face its view minus the body yaw stored in the
+     * entity, which sliding, head jumping, climbing, swimming, diving and Smart Moving's flying set to the view,
+     * so there they face the body.
      */
-    private static void swingArm(HumanoidModel<?> model, Entity entity, MovingState state, float netHeadYaw) {
-        if (model.attackTime <= 0) {
+    private static void workArms(HumanoidModel<?> model, Entity entity, MovingState state, float netHeadYaw,
+                                 float ageInTicks) {
+        boolean aimingRight = isAiming(model.rightArmPose);
+        boolean aimingLeft = isAiming(model.leftArmPose);
+        if (model.attackTime <= 0 && !aimingRight && !aimingLeft) {
             return;
         }
         LivingEntity living = (LivingEntity) entity;
-        HumanoidArm arm = living.swingingArm == InteractionHand.MAIN_HAND
-                ? living.getMainArm() : living.getMainArm().getOpposite();
         float shoulderYaw = netHeadYaw * Mth.DEG_TO_RAD;
         if (entity instanceof LocalPlayer) {
             OuterFade outer = OUTERS.get(entity);
@@ -432,7 +436,42 @@ public final class SmartMovingRender {
                 shoulderYaw = outer.viewOffset;
             }
         }
-        POSE.swingArm(arm, model.attackTime, shoulderYaw);
+        if (aimingRight || aimingLeft) {
+            aimArms(model, living, aimingRight, ageInTicks, shoulderYaw);
+        }
+        if (model.attackTime > 0) {
+            HumanoidArm arm = living.swingingArm == InteractionHand.MAIN_HAND
+                    ? living.getMainArm() : living.getMainArm().getOpposite();
+            POSE.swingArm(arm, model.attackTime, shoulderYaw);
+        }
+    }
+
+    /** The two-handed aiming poses the original's bow aiming covers in Smart Moving poses. */
+    private static boolean isAiming(HumanoidModel.ArmPose pose) {
+        return pose == HumanoidModel.ArmPose.BOW_AND_ARROW || pose == HumanoidModel.ArmPose.CROSSBOW_CHARGE
+                || pose == HumanoidModel.ArmPose.CROSSBOW_HOLD;
+    }
+
+    /**
+     * Has vanilla pose the model's arms for aiming as if standing with the head level (the original zeroed the
+     * head's turn and pitch for it), including the arms' bobbing, and hands that to the Smart Moving pose. The
+     * model's head and arms get their pose from it afterwards ({@link PoseCalculator#applyTo}).
+     */
+    private static void aimArms(HumanoidModel<?> model, LivingEntity entity, boolean right, float ageInTicks,
+                                float shoulderYaw) {
+        model.head.xRot = 0;
+        model.head.yRot = 0;
+        model.rightArm.resetPose();
+        model.leftArm.resetPose();
+        HumanoidModelInvoker invoker = (HumanoidModelInvoker) model;
+        if (right) {
+            invoker.smartmovingreborn$poseRightArm(entity);
+        } else {
+            invoker.smartmovingreborn$poseLeftArm(entity);
+        }
+        AnimationUtils.bobModelPart(model.rightArm, ageInTicks, 1);
+        AnimationUtils.bobModelPart(model.leftArm, ageInTicks, -1);
+        POSE.aimArms(shoulderYaw, model.rightArm, model.leftArm);
     }
 
     /**
