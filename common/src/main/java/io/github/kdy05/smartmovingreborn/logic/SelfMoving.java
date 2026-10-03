@@ -9,7 +9,6 @@ import io.github.kdy05.smartmovingreborn.logic.slide.SlideLogic;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
 import io.github.kdy05.smartmovingreborn.render.SlideParticles;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.MoverType;
@@ -123,6 +122,9 @@ public final class SelfMoving {
     void updateActionState(Button sneak, Button grab, Button jump, Button sprint, Button left, Button right,
                            Button back, boolean forwardPressed, boolean jumpInput, SmartMovingClientConfig config) {
         this.jumpInput = jumpInput;
+        if (!jumpInput) {
+            swimming.stopStillSwimmingJump();
+        }
         grabPressed = grab.pressed;
         sneakInput = sneak.pressed;
         jumping.startActionState();
@@ -137,12 +139,14 @@ public final class SelfMoving {
                 fits(Pose.STANDING), fits(Pose.CROUCHING), flying, config.fly.get() || config.levitateSmall.get());
         boolean inputContinueCrawl = CrawlLogic.inputContinueCrawl(config.crawlToggle.get(), toggles.isCrawlToggled(),
                 sneak.pressed, config.climbFree.get(), grab.pressed);
-        boolean wantCrawl = CrawlLogic.wantCrawl(config.crawl.get(), crawling, flying,
+        boolean wouldWantCrawl = CrawlLogic.wantCrawl(true, crawling, flying,
                 inputContinueCrawl || swimming.continueCrawl(), grab.startPressed,
                 sneak.pressed || toggles.isSneakToggled(), onGround);
-        // Until step 14-2, water depth stands in for the original's dipping depth.
+        boolean wantCrawl = config.crawl.get() && wouldWantCrawl;
+        // Dipping, the water above the floor of a small box (the feet a block below it) is too deep to crawl.
         boolean canCrawl = !state.swimming && !state.diving
-                && player.getFluidHeight(FluidTags.WATER) < CrawlLogic.MAX_WATER_DEPTH
+                && (!state.dipping
+                || swimming.dippingDepth() + (player.getBbHeight() < 1 ? -1 : 0) < SwimLogic.CRAWL_WATER_DEPTH)
                 && !state.climbing
                 && player.fallDistance < config.fallDistanceMinimum.get()
                 && !player.isPassenger() && !player.isSleeping() && !player.isFallFlying();
@@ -204,6 +208,9 @@ public final class SelfMoving {
         climbing.updateHolding(sneak.pressed, toggles.isCrawlToggled(), SmartMovingClient.isInputBlocked());
         updateCrawlClimbing(sneak, forwardPressed, config);
         updateClimbCrawling(sneak, mustCrawl, config);
+        if (grab.startPressed) {
+            swimming.grabStarted(jump.pressed, climbing.wouldWantClimb, wouldWantCrawl, config);
+        }
         Vec3 motion = player.getDeltaMovement();
         standing = motion.x * motion.x + motion.z * motion.z < STANDING_SPEED_SQUARE;
 
@@ -339,8 +346,8 @@ public final class SelfMoving {
 
     /** Whether the own player is in a small box for a Smart Moving move ({@link MovingState#smallPose}). */
     boolean smallPose() {
-        return state.lying() || state.crawlClimbing || climbing.climbCrawling || state.swimming || state.diving
-                || swimming.swimmingBox();
+        // A swimmer's or diver's box keeps the pose, which a grab out of a shallow swim ends before the flags.
+        return state.lying() || state.crawlClimbing || climbing.climbCrawling || swimming.swimmingBox();
     }
 
     /**
@@ -407,7 +414,7 @@ public final class SelfMoving {
     }
 
     /** Another move turns into crawling ({@code toCrawling}), as if it had been crawling already. */
-    private void toCrawling(SmartMovingClientConfig config) {
+    void toCrawling(SmartMovingClientConfig config) {
         state.crawling = true;
         wasCrawling = true;
         toggles.toCrawling(config.crawlToggle.get());
@@ -441,8 +448,8 @@ public final class SelfMoving {
 
     /**
      * Before vanilla moves the player ({@code handleJumping}): the normal jump vanilla asked for, charging and
-     * releasing a charged jump or head jump, and side and back jumps; then turns a slide by the strafe input.
-     * Jumps in water join in step 14.
+     * releasing a charged jump or head jump, the jump while dipping, and side and back jumps; then turns a slide
+     * by the strafe input.
      */
     void beforeTravel(SmartMovingClientConfig config) {
         vanillaDamping = Float.NaN;
@@ -529,7 +536,9 @@ public final class SelfMoving {
     /** After vanilla moved the player: the climbing sounds and the wall the move ran into. */
     void afterMove() {
         if (selfMoveStart != null) {
-            climbing.afterMove(player.position().distanceTo(selfMoveStart));
+            double distance = player.position().distanceTo(selfMoveStart);
+            climbing.afterMove(distance);
+            swimming.afterMove(distance);
             selfMoveStart = null;
         }
         jumping.afterMove();
@@ -614,6 +623,7 @@ public final class SelfMoving {
             Vec3 motion = player.getDeltaMovement();
             SlideParticles.spawn(player, motion.x, motion.z, config);
         }
+        swimming.afterTick(config);
 
         float movementSpeed = movementSpeed();
         float target = SpeedLogic.perspectiveSpeed(movementSpeed, state.fast, sprintJump, isRunning(),
@@ -656,6 +666,21 @@ public final class SelfMoving {
     /** The sneak key, read fresh this tick. */
     boolean sneakInput() {
         return sneakInput;
+    }
+
+    /** In water the way 1.7.10 saw it ({@code isInWater}). */
+    boolean inWater() {
+        return swimming.inWater();
+    }
+
+    /** Standing up from a shallow swim with jump held, which keeps that press from jumping. */
+    boolean stillSwimmingJump() {
+        return swimming.stillSwimmingJump();
+    }
+
+    /** Whether a jump set the vertical motion in this tick's jump handling. */
+    boolean jumpedThisTick() {
+        return jumping.jumpedThisTick();
     }
 
     /** Whether vanilla jumps this tick ({@code isJumping}). */

@@ -9,12 +9,6 @@ package io.github.kdy05.smartmovingreborn.logic.crawl;
  * vanilla's crawling pose, {@code Pose.SWIMMING}.
  */
 public final class CrawlLogic {
-    /**
-     * Water deeper than this (in blocks, measured from the feet) prevents crawling, like the original's dipping
-     * limit. Step 14 replaces it with the original's condition on the dipping depth.
-     */
-    public static final double MAX_WATER_DEPTH = 0.65;
-
     private CrawlLogic() {
     }
 

@@ -52,13 +52,15 @@ public final class ServerNetworkHandler {
     }
 
     /**
-     * Runs on the server thread. Plays a climbing sound of the sender's to the players around it, but not to the
-     * sender, which played it already. Only registered sounds, while the sender climbs, at most at full volume.
+     * Runs on the server thread. Plays a climbing or swimming sound of the sender's to the players around it, but
+     * not to the sender, which played it already. Only registered sounds, while the sender climbs, swims or dips,
+     * at most at full volume.
      */
     public static void onSound(ServerPlayer sender, SoundMessage message) {
         MovingState state = STATES.get(sender);
         SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(message.sound());
-        if (state == null || !(state.climbing || state.ceilingClimbing) || sound == null) {
+        if (state == null || !(state.climbing || state.ceilingClimbing || state.swimming || state.dipping)
+                || sound == null) {
             return;
         }
         sender.serverLevel().playSound(sender, sender.getX(), sender.getY(), sender.getZ(), sound,

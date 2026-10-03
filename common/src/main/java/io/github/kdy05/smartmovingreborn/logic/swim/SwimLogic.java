@@ -150,6 +150,15 @@ public final class SwimLogic {
         return sneak && swimDownOnSneak && !(wasSwimming && wantShallowSwim);
     }
 
+    /**
+     * Whether a dipping player stands high enough in its block to jump out of the water (1899-1900): the
+     * original's {@code posY}, 1.62 above the feet, more than 0.6 (0.37 sneaking) into its block.
+     */
+    public static boolean dippingJumpHeight(double feet, boolean slow) {
+        double y = feet + 1.62;
+        return y - Math.floor(y) > (slow ? 0.37 : 0.6);
+    }
+
     /** The horizontal damping of each move; dipping keeps more of the vertical motion. */
     public static double horizontalDamping(Kind kind) {
         return switch (kind) {

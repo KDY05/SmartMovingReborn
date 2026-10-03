@@ -5,12 +5,15 @@ import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimSpeed;
 import io.github.kdy05.smartmovingreborn.mixin.common.EntityAccessor;
+import io.github.kdy05.smartmovingreborn.render.SwimParticles;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.world.ClimbOrientation;
 import io.github.kdy05.smartmovingreborn.world.LevelClimbTerrain;
 import net.minecraft.core.BlockPos;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
@@ -55,6 +58,13 @@ final class SelfSwimming {
     private boolean fakeShallowWaterSneaking;
     /** Crawling goes on without its input after a swim ended below water ({@code contextContinueCrawl}). */
     private boolean continueCrawl;
+    /**
+     * Stood up from a shallow swim with jump held: that press does not jump while dipping until it is released
+     * ({@code isStillSwimmingJump}).
+     */
+    private boolean stillSwimmingJump;
+    /** The distance swum since the last splash sound ({@code distanceSwom}). */
+    private float distanceSwum;
     /** Swimming or diving when this tick's travel started ({@code wasShortInWater}). */
     private boolean wasShortInWater;
     /** This tick's travel was the land movement ({@code handleLand}). */
@@ -63,6 +73,12 @@ final class SelfSwimming {
     private Vec3 motionBeforeJump;
     /** What vanilla's jump added this tick, undone while Smart Moving moves the player in water. */
     private Vec3 vanillaJump = Vec3.ZERO;
+    /**
+     * On the ground before this tick's jumps. The original's jumps left the ground state alone, while this port's
+     * take the player off the ground at once (see {@code SelfJumping.tryJump}), so a dipping jump at the shore
+     * would never start jumping out of the water.
+     */
+    private boolean onGroundBeforeJump;
 
     SelfSwimming(SelfMoving moving) {
         this.moving = moving;
@@ -74,6 +90,8 @@ final class SelfSwimming {
         resetSwimming();
         waterMovementTicks = 0;
         continueCrawl = false;
+        stillSwimmingJump = false;
+        distanceSwum = 0;
         wasShortInWater = false;
         landTick = false;
         motionBeforeJump = null;
@@ -102,6 +120,21 @@ final class SelfSwimming {
         continueCrawl = false;
     }
 
+    /** Standing up from a shallow swim with jump held ({@code isStillSwimmingJump}). */
+    boolean stillSwimmingJump() {
+        return stillSwimmingJump;
+    }
+
+    /** The jump key was released. */
+    void stopStillSwimmingJump() {
+        stillSwimmingJump = false;
+    }
+
+    /** The water's surface above the feet, measured in the last tick in water, -1 elsewhere ({@code dippingDepth}). */
+    float dippingDepth() {
+        return dippingDepth;
+    }
+
     /** Sneaking while swimming in shallow water counts as sneaking ({@code isFakeShallowWaterSneaking}). */
     boolean fakeShallowWaterSneaking() {
         return fakeShallowWaterSneaking;
@@ -121,6 +154,7 @@ final class SelfSwimming {
     void beforeTravel() {
         vanillaJump = motionBeforeJump == null ? Vec3.ZERO : player.getDeltaMovement().subtract(motionBeforeJump);
         motionBeforeJump = null;
+        onGroundBeforeJump = player.onGround();
     }
 
     /**
@@ -151,6 +185,11 @@ final class SelfSwimming {
         }
         resetSwimming();
         landTick = true;
+        if (replacesVanilla(config) && !inWater() && !moving.jumpedThisTick()) {
+            // Vanilla still finds water around a box whose bottom is just under the surface, where 1.7.10 did not
+            // and so did not jump in water: rising out of shallow water, that jump would carry the player higher.
+            player.setDeltaMovement(player.getDeltaMovement().subtract(vanillaJump));
+        }
         if (!moving.grabPressed()) {
             endSwimming();
         }
@@ -201,6 +240,10 @@ final class SelfSwimming {
         if (!replacesVanilla(config)) {
             resetSwimming();
             standUpFromSwimming();
+            stillSwimmingJump = false;
+            if (state.crawling && small()) {
+                standUpIfPossible(config);
+            }
             return Handled.STANDARD;
         }
 
@@ -228,8 +271,8 @@ final class SelfSwimming {
         if (wasSwimming && wantShallowSwim && sneak && config.swimDownOnSneak.get()) {
             fakeShallowWaterSneaking = true;
         }
-        // The original cancelled jumping and sneaking together while diving, but only after resetting the diving
-        // flag, so never. Its stand up of a crawler in water (step 14-2) waits for the crawling conditions.
+        // The original cancelled jumping and sneaking together while diving, and stood up a crawler in water, but
+        // only after resetting the diving flag and the box, so never.
         boolean crawlingLike = state.crawling || moving.climbCrawling() || state.crawlClimbing;
         float pitch = player.getXRot();
         boolean moveSwim = pitch < 0 && input.z > 0 || pitch > 0 && input.z < 0;
@@ -272,10 +315,13 @@ final class SelfSwimming {
         boolean swimming = kind == SwimLogic.Kind.SWIMMING;
         boolean diving = kind == SwimLogic.Kind.DIVING;
         double motionYDiff = zone.motionYDiff();
-        // The original took back the 0.04 of vanilla's jump in water while jumping; vanilla's jump of 1.20.1
-        // differs (and jumps from the ground in shallow water), so all of it is undone, and so is its sinking on
-        // sneak, which 1.7.10 did not have.
-        Vec3 motion = player.getDeltaMovement().subtract(vanillaJump);
+        // The original took back the 0.04 of 1.7.10's jump in water while jumping. Vanilla's jump of 1.20.1
+        // differs, so all of it is undone instead, which leaves what the original's two steps left. A Smart Moving
+        // jump this tick replaced vanilla's, but the original still took the 0.04 off it. Vanilla's sinking on
+        // sneak, which 1.7.10 did not have, is undone too.
+        Vec3 motion = moving.jumpedThisTick()
+                ? player.getDeltaMovement().subtract(0, diveUp ? SwimLogic.VANILLA_LIQUID_JUMP : 0, 0)
+                : player.getDeltaMovement().subtract(vanillaJump);
         if (player.isInWater() && SmartMovingClient.isSneakInput(player)) {
             motion = motion.add(0, SwimLogic.VANILLA_LIQUID_JUMP * SwimSpeed.of(player), 0);
         }
@@ -293,7 +339,7 @@ final class SelfSwimming {
         }
         waterMovementTicks = swimming || diving ? waterMovementTicks + 1 : 0;
         jumpingOutOfWater = SwimLogic.jumpOutOfWater(strafe != 0 || forward != 0, player.horizontalCollision,
-                diveUp, state.slow, waterMovementTicks, player.onGround(), wasJumpingOutOfWater);
+                diveUp, state.slow, waterMovementTicks, onGroundBeforeJump, wasJumpingOutOfWater);
         float acceleration = 0.02f * speedFactor * SwimLogic.enhancementFactor(player.isSprinting(),
                 EnchantmentHelper.getDepthStrider(player), player.onGround(), player.getSpeed(),
                 player.hasEffect(MobEffects.DOLPHINS_GRACE), (float) SwimSpeed.of(player));
@@ -352,6 +398,105 @@ final class SelfSwimming {
         }
         player.move(MoverType.SELF, player.getDeltaMovement());
         return Handled.MOVED;
+    }
+
+    /**
+     * Grab pressed ({@code updateEntityActionState} 2663-2685): a shallow swimmer who would climb stands on the
+     * floor, and a dipping player who would crawl in water at least 0.55 deep goes down into it, to swim from 0.6.
+     */
+    void grabStarted(boolean jumpPressed, boolean wouldWantClimb, boolean wouldWantCrawl,
+                     SmartMovingClientConfig config) {
+        if (shallowDiveOrSwim && wouldWantClimb) {
+            standUpFromSwimming();
+            AABB box = player.getBoundingBox();
+            player.move(MoverType.SELF, new Vec3(0, moving.maxSolidBetween(box.minY, box.maxY) - box.minY, 0));
+            if (jumpPressed) {
+                stillSwimmingJump = true;
+            }
+        } else if (state.dipping && wouldWantCrawl && dippingDepth >= SwimLogic.SHALLOW_STAND_DEPTH) {
+            if (dippingDepth >= 0.6) {
+                // The small box a block up, moved down until the water's surface is 1.6 above the feet.
+                state.crawling = false;
+                toSwimmingBox();
+                player.move(MoverType.SELF, new Vec3(0, dippingDepth - 1.6, 0));
+            } else {
+                moving.toCrawling(config);
+            }
+        }
+    }
+
+    /**
+     * {@code standupIfPossible}, for a crawler in water with swimming and diving off: down to a floor less than a
+     * block below, then standing if there is room. The original slid instead of crawling on with grab held after
+     * a head jump; here it crawls on.
+     */
+    private void standUpIfPossible(SmartMovingClientConfig config) {
+        AABB box = player.getBoundingBox();
+        double gapBelow = box.minY - moving.maxSolidBetween(box.minY - 1.1, box.minY);
+        if (gapBelow >= 1) {
+            return;
+        }
+        double top = box.minY + SMALL_HEIGHT;
+        double gapAbove = moving.minSolidBetween(top, top + 1.1) - top;
+        player.move(MoverType.SELF, new Vec3(0, -gapBelow, 0));
+        if (gapBelow + gapAbove >= 1) {
+            state.crawling = false;
+            player.setPose(Pose.STANDING);
+        } else {
+            moving.toCrawling(config);
+        }
+    }
+
+    /** After the own player's move: a splash every 1.43 blocks swum ({@code afterMoveEntity} 1674-1680). */
+    void afterMove(double distance) {
+        if (!state.swimming) {
+            return;
+        }
+        distanceSwum += (float) distance;
+        if (distanceSwum > 1.4285715f) {
+            RandomSource random = player.getRandom();
+            SmartMovingClient.playSound(player, SoundEvents.PLAYER_SPLASH, 0.05f,
+                    1 + (random.nextFloat() - random.nextFloat()) * 0.4f);
+            distanceSwum--;
+        }
+    }
+
+    /**
+     * At the end of the tick ({@code afterOnUpdate}): the swimming particles, and the push of a current taken back
+     * while swimming ({@code reverseHandleMaterialAcceleration}).
+     */
+    void afterTick(SmartMovingClientConfig config) {
+        if (!state.swimming) {
+            return;
+        }
+        Vec3 flow = currentFlow();
+        if (flow.lengthSqr() > 0) {
+            player.setDeltaMovement(player.getDeltaMovement().add(flow.normalize().scale(-0.014)));
+        }
+        Vec3 motion = player.getDeltaMovement();
+        SwimParticles.spawn(player, motion.x, motion.z, config);
+    }
+
+    /**
+     * The direction water pushes the player in, summed over the water blocks of the original's box shrunk by 0.4 at
+     * the top and the bottom, like 1.7.10's push that the original took back.
+     */
+    private Vec3 currentFlow() {
+        AABB box = player.getBoundingBox();
+        double top = box.minY + (small() ? SMALL_HEIGHT : STANDING_HEIGHT);
+        Vec3 flow = Vec3.ZERO;
+        for (int x = Mth.floor(box.minX + 0.001); x <= Mth.floor(box.maxX - 0.001); x++) {
+            for (int z = Mth.floor(box.minZ + 0.001); z <= Mth.floor(box.maxZ - 0.001); z++) {
+                for (int y = Mth.floor(box.minY + 0.4); y <= Mth.floor(top - 0.4); y++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    FluidState fluid = player.level().getFluidState(pos);
+                    if (fluid.is(FluidTags.WATER)) {
+                        flow = flow.add(fluid.getFlow(player.level(), pos));
+                    }
+                }
+            }
+        }
+        return flow;
     }
 
     /**
@@ -477,7 +622,7 @@ final class SelfSwimming {
      * Whether the player is in water the way 1.7.10 saw it ({@code isInWater}): a water block in the cells of the
      * box shrunk by 0.4 at the top and the bottom. The box is the original's, which was 0.8 high when small.
      */
-    private boolean inWater() {
+    boolean inWater() {
         AABB box = player.getBoundingBox();
         double top = box.minY + (small() ? SMALL_HEIGHT : STANDING_HEIGHT);
         int minY = Mth.floor(box.minY + 0.4);

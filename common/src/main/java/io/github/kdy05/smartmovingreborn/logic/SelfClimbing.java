@@ -52,6 +52,8 @@ final class SelfClimbing {
     private final Jumper jumper;
 
     boolean wantClimbUp;
+    /** Would climb if free climbing were on ({@code wouldWantClimb}), which a shallow swimmer's grab also reads. */
+    boolean wouldWantClimb;
     boolean wantClimbDown;
     private boolean wantClimbCeiling;
     /** Grab was pressed to crawl against a wall, not to climb it. */
@@ -96,6 +98,7 @@ final class SelfClimbing {
     void reset() {
         resetClimbing();
         wantClimbUp = false;
+        wouldWantClimb = false;
         wantClimbDown = false;
         wantClimbCeiling = false;
         wantCrawlNotClimb = false;
@@ -152,7 +155,7 @@ final class SelfClimbing {
         wantCrawlNotClimb = (wantCrawlNotClimb || grab.startPressed && !wasCrawling) && grab.pressed && forward
                 && state.crawling && player.horizontalCollision;
         boolean facedToSolidVine = count(1, true, false, true) > 0;
-        boolean wouldWantClimb = (grab.pressed || holding && sneak.pressed
+        wouldWantClimb = (grab.pressed || holding && sneak.pressed
                 || config.isFreeBaseClimb() && config.climbFreeLadderAuto.get() && count(1, true, true, false) > 0
                 || config.isFreeBaseClimb() && config.climbFreeVineAuto.get() && facedToSolidVine)
                 && (!state.sliding || grab.pressed && forward)

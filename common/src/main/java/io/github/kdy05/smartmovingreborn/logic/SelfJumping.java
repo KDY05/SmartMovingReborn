@@ -12,7 +12,10 @@ import io.github.kdy05.smartmovingreborn.logic.jump.WallJumpInput;
 import io.github.kdy05.smartmovingreborn.mixin.common.EntityAccessor;
 import io.github.kdy05.smartmovingreborn.render.SmartMovingRender;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
+import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.MoverType;
@@ -34,6 +37,8 @@ final class SelfJumping {
     private final WallJumpInput wallJumps = new WallJumpInput();
     /** Vanilla wanted to jump this tick and was stopped; {@link #handleJumping} jumps instead ({@code jumpAvoided}). */
     private boolean jumpAvoided;
+    /** A jump set the vertical motion this tick, replacing what vanilla's jump in water added. */
+    private boolean jumpedThisTick;
     /** After a cancelled charge, no jump until the key is released. */
     private boolean blockJumpTillButtonRelease;
     /** Ticks the jump key has been held for a charged jump. */
@@ -63,6 +68,7 @@ final class SelfJumping {
         state.angleJumpType = 0;
         state.wallJumping = false;
         jumpAvoided = false;
+        jumpedThisTick = false;
         blockJumpTillButtonRelease = false;
         jumpCharge = 0;
         headJumpCharge = 0;
@@ -95,9 +101,8 @@ final class SelfJumping {
     void updateInput(Button jump, Button left, Button right, Button back, boolean forwardPressed, boolean flying,
                      boolean onGround, SmartMovingClientConfig config) {
         state.wallJumping = false;
-        // Smart Moving swimming (step 14) also rules it out; until then any water does.
         boolean canWallJump = config.wallUpJump.get() && !state.headJumping && !player.onGround() && !flying
-                && !player.isInWater() && !player.isFallFlying() && !state.climbing;
+                && !state.swimming && !state.diving && !player.isFallFlying() && !state.climbing;
         wallJumps.update(canWallJump,
                 config.wallJumpDoubleClick.get() ? (int) Math.ceil(config.wallJumpDoubleClickTicks.get()) : 0,
                 player.onGround() || state.climbing, jump.pressed, jump.startPressed, player.horizontalCollision);
@@ -119,6 +124,11 @@ final class SelfJumping {
         jumpAvoided = true;
     }
 
+    /** Whether a jump set the vertical motion in this tick's {@link #handleJumping}. */
+    boolean jumpedThisTick() {
+        return jumpedThisTick;
+    }
+
     /** Whether a cancelled charge keeps the jump key from jumping until it is released. */
     boolean blocked() {
         return blockJumpTillButtonRelease;
@@ -136,11 +146,12 @@ final class SelfJumping {
 
     /**
      * Before vanilla moves the player ({@code handleJumping}): the normal jump vanilla asked for, charging and
-     * releasing a charged jump or head jump, and side and back jumps; none while swimming or diving. The jump
-     * while dipping joins in step 14-2.
+     * releasing a charged jump or head jump, the jump while dipping, and side and back jumps; none while swimming
+     * or diving.
      */
     void handleJumping(SmartMovingClientConfig config) {
         boolean jumpInput = moving.jumpInput();
+        jumpedThisTick = false;
         if (blockJumpTillButtonRelease && !jumpInput) {
             blockJumpTillButtonRelease = false;
         }
@@ -148,7 +159,8 @@ final class SelfJumping {
             return;
         }
         boolean onGround = player.onGround();
-        boolean jump = jumpAvoided && onGround;
+        boolean inWater = moving.inWater();
+        boolean jump = jumpAvoided && onGround && !inWater;
         Vec3 motion = player.getDeltaMovement();
         jumpMotionX = motion.x;
         jumpMotionZ = motion.z;
@@ -197,6 +209,19 @@ final class SelfJumping {
             }
         }
 
+        // Jumping while dipping, high enough in the block (1897-1906): the original took back vanilla's jump in
+        // water once more, and jumps off the ground out of the water with a splash.
+        if (jumpInput && inWater && state.dipping && SwimLogic.dippingJumpHeight(player.getY(), state.slow)) {
+            Vec3 current = player.getDeltaMovement();
+            player.setDeltaMovement(current.x, current.y - SwimLogic.VANILLA_LIQUID_JUMP, current.z);
+            if (!moving.stillSwimmingJump() && onGround && jumpCharge == 0
+                    && tryJump(JumpType.UP, Float.NaN, true, config)) {
+                RandomSource random = player.getRandom();
+                SmartMovingClient.playSound(player, SoundEvents.PLAYER_SPLASH, 0.05f,
+                        1 + (random.nextFloat() - random.nextFloat()) * 0.4f);
+            }
+        }
+
         boolean vineClimbing = state.handsVineClimbing || state.feetVineClimbing;
         if (jump && !blockJumpTillButtonRelease && !jumpCharging && !headJumpCharging && !vineClimbing) {
             tryJump(JumpType.UP, Float.NaN, config);
@@ -215,6 +240,11 @@ final class SelfJumping {
      * @param angle the jump direction (yaw) of angled jumps, otherwise NaN
      */
     boolean tryJump(JumpType type, float angle, SmartMovingClientConfig config) {
+        return tryJump(type, angle, state.dipping, config);
+    }
+
+    /** @param inWater jumping in water, which caps a boosted jump's horizontal speed lower (default dipping) */
+    boolean tryJump(JumpType type, float angle, boolean inWater, SmartMovingClientConfig config) {
         JumpSpeed speed = JumpSpeed.of(moving.standing(), state.slow, moving.isRunning(), state.fast,
                 !Float.isNaN(angle));
         if (!JumpEngine.enabled(config, speed, type)) {
@@ -226,7 +256,7 @@ final class SelfJumping {
         float verticalFactor = JumpEngine.verticalFactor(config, speed, type) * boostFactor;
         float chargeFactor = type == JumpType.CHARGE ? JumpEngine.chargeFactor(config, jumpCharge) : 1;
         double maxHorizontalMotion = horizontalFactor > 1 && !player.horizontalCollision
-                ? JumpEngine.maxHorizontalMotion(config, speed, player.isInWater()) * moving.speedFactor(config)
+                ? JumpEngine.maxHorizontalMotion(config, speed, inWater) * moving.speedFactor(config)
                 : Double.NaN;
 
         Vec3 motion = player.getDeltaMovement();
@@ -236,6 +266,7 @@ final class SelfJumping {
         boolean vertical = !Double.isNaN(result.y());
         player.setDeltaMovement(result.x(), vertical ? result.y() : motion.y, result.z());
         if (vertical) {
+            jumpedThisTick = true;
             moving.setSprintJump(state.fast);
         }
         if (type.base().head() && !state.headJumping) {

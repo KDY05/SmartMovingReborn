@@ -78,6 +78,16 @@ class SwimLogicTest {
     }
 
     @Test
+    void dippingJumpsHighEnoughInTheBlock() {
+        assertTrue(SwimLogic.dippingJumpHeight(64.0, false));
+        assertTrue(SwimLogic.dippingJumpHeight(64.3, false));
+        assertFalse(SwimLogic.dippingJumpHeight(64.5, false));
+        assertFalse(SwimLogic.dippingJumpHeight(64.8, false));
+        assertTrue(SwimLogic.dippingJumpHeight(64.8, true));
+        assertFalse(SwimLogic.dippingJumpHeight(64.7, true));
+    }
+
+    @Test
     void jumpingOutOfWaterNeedsAWallJumpAndTime() {
         assertTrue(SwimLogic.jumpOutOfWater(true, true, true, false, 11, false, false));
         assertFalse(SwimLogic.jumpOutOfWater(true, true, true, false, 10, false, false));

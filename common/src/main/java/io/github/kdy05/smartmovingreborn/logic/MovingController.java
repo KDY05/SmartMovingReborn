@@ -209,11 +209,11 @@ public final class MovingController {
     }
 
     /**
-     * Whether {@code Entity#getMovementEmission} should be none: climbing makes no step sounds or vibrations of
-     * vanilla's (original {@code canTriggerWalking}); it has its own sounds.
+     * Whether {@code Entity#getMovementEmission} should be none: climbing and diving make no step or swimming
+     * sounds or vibrations of vanilla's (original {@code canTriggerWalking}); climbing has its own sounds.
      */
     public static boolean silentMovement(Entity entity) {
-        return isActiveSelf(entity) && self.state.climbing;
+        return isActiveSelf(entity) && (self.state.climbing || self.state.diving);
     }
 
     /**
@@ -254,10 +254,12 @@ public final class MovingController {
 
     /**
      * Replaces {@code Player#jumpFromGround} when true (original {@code jump}): Smart Moving jumps instead in
-     * {@link #travel}. Jumps in water or lava stay vanilla's until swimming is ported (step 14).
+     * {@link #travel}, though not in water, where 1.7.10 never jumped off the ground and Smart Moving's jump while
+     * dipping replaces it. Jumps in lava (out of scope) and in water with swimming and diving off stay vanilla's.
      */
     public static boolean jumpFromGround(Player player) {
-        if (!isActiveSelf(player) || player.isInWater() || player.isInLava()) {
+        if (!isActiveSelf(player) || player.isInLava()
+                || player.isInWater() && !SelfSwimming.replacesVanilla(SmartMovingReborn.CLIENT_CONFIG)) {
             return false;
         }
         self.avoidJump();
