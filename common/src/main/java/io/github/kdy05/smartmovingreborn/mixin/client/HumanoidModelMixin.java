@@ -18,7 +18,7 @@ public abstract class HumanoidModelMixin {
     @Inject(method = "setupAnim(Lnet/minecraft/world/entity/LivingEntity;FFFFF)V", at = @At("HEAD"))
     private void smartmovingreborn$beforeSetupAnim(LivingEntity entity, float limbSwing, float limbSwingAmount,
                                                    float ageInTicks, float netHeadYaw, float headPitch, CallbackInfo ci) {
-        SmartMovingRender.beforeSetupAnim((HumanoidModel<?>) (Object) this);
+        SmartMovingRender.beforeSetupAnim((HumanoidModel<?>) (Object) this, entity);
     }
 
     /** The first read of {@code riding} comes right after the walking swing of the arms and legs. */

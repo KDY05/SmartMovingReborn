@@ -79,13 +79,15 @@ final class PoseCalculator {
     /**
      * Crawling, from {@code SmartMovingModel.setRotationAngles}. {@code limbSwing} and {@code limbSwingAmount} are
      * vanilla's walk animation values, which Smart Render computed the same way.
+     *
+     * @param headYaw the head's yaw from the body's before easing, in radians, which the head rolls by
      */
-    void crawl(float limbSwing, float limbSwingAmount, float netHeadYaw) {
+    void crawl(float limbSwing, float limbSwingAmount, float headYaw) {
         float distance = limbSwing * 1.3f;
         float walkFactor = factor(limbSwingAmount, 0, CRAWL_FULL_SPEED);
         float standFactor = factor(limbSwingAmount, CRAWL_FULL_SPEED, 0);
 
-        head.zRot = -netHeadYaw * DEGREES_TO_RADIANS;
+        head.zRot = -headYaw;
         head.xRot = -PI / 4;
         head.z = -2;
 

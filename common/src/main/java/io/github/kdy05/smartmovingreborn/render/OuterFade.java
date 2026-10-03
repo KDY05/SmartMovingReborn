@@ -22,6 +22,8 @@ final class OuterFade {
     float bodyRotO;
     /** The view yaw minus the body's target yaw this frame, in radians (the original's pelvis turn in side jumps). */
     float viewOffset;
+    /** The head yaw minus the body yaw before easing this frame, in radians ({@code viewHorizontalAngelOffset}). */
+    float headOffset;
 
     /**
      * Moves to this frame's targets and stores them. Faded values ease towards their target by a fifth per tick

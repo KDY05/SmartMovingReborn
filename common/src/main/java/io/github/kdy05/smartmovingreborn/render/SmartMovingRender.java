@@ -47,6 +47,8 @@ public final class SmartMovingRender {
 
     /** Set while the first person hand is drawn, which reuses the player model and must keep vanilla's pose. */
     private static boolean renderingHand;
+    /** Set while the player is drawn in the inventory screen, which keeps vanilla's pose like the original's. */
+    private static boolean renderingInventory;
 
     private SmartMovingRender() {
     }
@@ -120,7 +122,8 @@ public final class SmartMovingRender {
      */
     public static void beforeRender(AbstractClientPlayer player, float partialTicks) {
         MovingState state = stateOf(player);
-        if (state == null || isInventory(partialTicks)) {
+        renderingInventory = isInventory(partialTicks);
+        if (state == null || renderingInventory) {
             return;
         }
         OuterFade outer = OUTERS.computeIfAbsent(player, p -> new OuterFade());
@@ -174,6 +177,8 @@ public final class SmartMovingRender {
             float bodyYaw = Mth.rotLerp(partialTicks, player.yBodyRotO, player.yBodyRot);
             outer.update(0, false, bodyYaw * Mth.DEG_TO_RAD, true, time);
             outer.viewOffset = Mth.wrapDegrees(player.getYRot() - bodyYaw) * Mth.DEG_TO_RAD;
+            outer.headOffset = Mth.wrapDegrees(Mth.rotLerp(partialTicks, player.yHeadRotO, player.yHeadRot) - bodyYaw)
+                    * Mth.DEG_TO_RAD;
         }
 
         outer.bodyRot = facesView(player, state)
@@ -204,6 +209,7 @@ public final class SmartMovingRender {
 
     /** {@code PlayerRenderer#render} TAIL: puts back the body yaw {@link #beforeRender} replaced for drawing. */
     public static void afterRender(AbstractClientPlayer player) {
+        renderingInventory = false;
         OuterFade outer = OUTERS.get(player);
         if (outer == null || Float.isNaN(outer.bodyRot)) {
             return;
@@ -235,11 +241,16 @@ public final class SmartMovingRender {
 
     /**
      * {@code HumanoidModel#setupAnim} HEAD: restores the rest pose of a model posed last time. Vanilla never
-     * resets part scales, head roll or some positions, so they would otherwise stay after standing up.
+     * resets part scales, head roll or some positions, so they would otherwise stay after standing up. A side or
+     * back jumping body does not crouch ({@code animateSneaking} skipped it).
      */
-    public static void beforeSetupAnim(HumanoidModel<?> model) {
+    public static void beforeSetupAnim(HumanoidModel<?> model, Entity entity) {
         if (POSED.remove(model)) {
             POSE.resetParts(model);
+        }
+        MovingState state = stateOf(entity);
+        if (!renderingHand && !renderingInventory && state != null && !state.lying() && isAngleJumping(state)) {
+            model.crouching = false;
         }
     }
 
@@ -249,7 +260,7 @@ public final class SmartMovingRender {
      */
     public static void afterArmSwing(HumanoidModel<?> model, Entity entity) {
         MovingState state = stateOf(entity);
-        if (!renderingHand && state != null && !state.lying() && isAngleJumping(state)) {
+        if (!renderingHand && !renderingInventory && state != null && !state.lying() && isAngleJumping(state)) {
             PoseCalculator.angleJumpArms(model, state.angleJumpType);
         }
     }
@@ -258,7 +269,7 @@ public final class SmartMovingRender {
     public static void setupAnim(HumanoidModel<?> model, Entity entity, float limbSwing, float limbSwingAmount,
                                  float ageInTicks, float netHeadYaw, float headPitch) {
         MovingState state = stateOf(entity);
-        if (renderingHand || state == null) {
+        if (renderingHand || renderingInventory || state == null) {
             return;
         }
         boolean crawlClimb = state.crawlClimbing || state.climbing && state.crawling;
@@ -307,7 +318,9 @@ public final class SmartMovingRender {
             POSE.applyTo(model);
         } else if (state.crawling) {
             POSE.reset(model);
-            POSE.crawl(limbSwing, limbSwingAmount, netHeadYaw);
+            // The original rolled the head by the view's offset from the body yaw before easing.
+            OuterFade outer = OUTERS.get(entity);
+            POSE.crawl(limbSwing, limbSwingAmount, outer == null ? netHeadYaw * Mth.DEG_TO_RAD : outer.headOffset);
             swingArm(model, entity, state, netHeadYaw);
             POSE.applyTo(model);
         } else if (state.sliding) {
@@ -427,7 +440,7 @@ public final class SmartMovingRender {
      * rotation stays off, since {@link MovingController#suppressSwimAmount} keeps its swim amount at 0.
      */
     public static void setupRotations(AbstractClientPlayer player, PoseStack poseStack) {
-        if (isLying(player)) {
+        if (!renderingInventory && isLying(player)) {
             poseStack.translate(0, -1, 0);
         }
     }
