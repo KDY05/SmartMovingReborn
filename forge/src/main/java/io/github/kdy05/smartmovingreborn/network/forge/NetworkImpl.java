@@ -2,6 +2,7 @@ package io.github.kdy05.smartmovingreborn.network.forge;
 
 import io.github.kdy05.smartmovingreborn.forge.SmartMovingRebornForgeClient;
 import io.github.kdy05.smartmovingreborn.forge.SmartMovingRebornForgeNetwork;
+import io.github.kdy05.smartmovingreborn.network.ConfigSyncMessage;
 import io.github.kdy05.smartmovingreborn.network.SoundMessage;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
@@ -30,6 +31,10 @@ public final class NetworkImpl {
     }
 
     public static void sendTo(ServerPlayer player, StateRelayMessage message) {
+        SmartMovingRebornForgeNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), message);
+    }
+
+    public static void sendTo(ServerPlayer player, ConfigSyncMessage message) {
         SmartMovingRebornForgeNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), message);
     }
 }

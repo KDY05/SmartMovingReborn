@@ -24,6 +24,8 @@ public final class SmartMovingReborn {
     public static void init() {
         LOGGER.info("Smart Moving Reborn initializing");
         loadConfig(SERVER_CONFIG, SmartMovingServerConfig.FILE_NAME);
+        LOGGER.info(SERVER_CONFIG.serverConfig.get() ? "Smart Moving overrides client configurations"
+                : "Smart Moving allows client configurations");
     }
 
     public static void initClient() {

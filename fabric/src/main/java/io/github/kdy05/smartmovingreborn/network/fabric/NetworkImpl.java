@@ -1,5 +1,6 @@
 package io.github.kdy05.smartmovingreborn.network.fabric;
 
+import io.github.kdy05.smartmovingreborn.network.ConfigSyncMessage;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.SoundMessage;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
@@ -41,5 +42,11 @@ public final class NetworkImpl {
         FriendlyByteBuf buf = PacketByteBufs.create();
         message.write(buf);
         ServerPlayNetworking.send(player, Network.RELAY_ID, buf);
+    }
+
+    public static void sendTo(ServerPlayer player, ConfigSyncMessage message) {
+        FriendlyByteBuf buf = PacketByteBufs.create();
+        message.write(buf);
+        ServerPlayNetworking.send(player, Network.CONFIG_ID, buf);
     }
 }

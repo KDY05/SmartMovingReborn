@@ -1,5 +1,8 @@
 package io.github.kdy05.smartmovingreborn.config;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -300,6 +303,36 @@ public abstract class SmartMovingConfig extends PropertySet {
     public final FloatProperty usageFoodSpeedFactor = decreasing("move.usage.food.speed.factor", usageSpeedFactor::get,
             "Speed factor while eating food (>= 0 AND <= 1, defaults to \"move.usage.speed.factor\" when not present)");
     public final BooleanProperty usageSprint = off("move.usage.sprint", "To switch on/off generic sprinting while using an item");
+
+    /** How many properties this class declares; the subclasses' come after them. */
+    private final int movementRuleCount;
+
+    protected SmartMovingConfig() {
+        // Runs after this class's field initializers and before the subclass's.
+        movementRuleCount = properties().size();
+    }
+
+    /** The movement rules declared here, the part a server can enforce ({@code move.server.config}). */
+    public List<Property<?>> movementRules() {
+        return properties().subList(0, movementRuleCount);
+    }
+
+    /** The movement rules as {@code key → stored value}, for sending them or restoring them later. */
+    public Map<String, String> writeMovementRules() {
+        Map<String, String> values = new LinkedHashMap<>();
+        for (Property<?> property : movementRules()) {
+            values.put(property.key(), property.storedString());
+        }
+        return values;
+    }
+
+    /**
+     * Replaces the movement rules with {@code values} like a file load: missing keys take their defaults,
+     * invalid values are replaced and unknown keys ignored, each with a warning.
+     */
+    public List<String> loadMovementRules(Map<String, String> values) {
+        return ConfigFile.load(values, movementRules()).warnings();
+    }
 
     /** Ladders and vines are free climbed instead of with a base climbing mode ({@code isFreeBaseClimb}). */
     public boolean isFreeBaseClimb() {

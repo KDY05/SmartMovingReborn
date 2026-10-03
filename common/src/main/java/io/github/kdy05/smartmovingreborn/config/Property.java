@@ -44,6 +44,11 @@ public abstract class Property<T> {
         return value;
     }
 
+    /** {@link #stored()} as written to the file. */
+    public String storedString() {
+        return format(stored());
+    }
+
     public void set(T value) {
         this.value = value;
     }

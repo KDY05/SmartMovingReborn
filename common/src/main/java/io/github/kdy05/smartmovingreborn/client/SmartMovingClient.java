@@ -6,6 +6,7 @@ import io.github.kdy05.smartmovingreborn.input.Button;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
 import io.github.kdy05.smartmovingreborn.logic.MovingController;
 import io.github.kdy05.smartmovingreborn.mixin.client.CameraAccessor;
+import io.github.kdy05.smartmovingreborn.network.ConfigSyncMessage;
 import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.SoundMessage;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
@@ -31,7 +32,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Client-side per-connection bookkeeping: server detection, the F9 toggle, and state exchange. */
+/**
+ * Client-side per-connection bookkeeping: server detection, the server's configuration, the F9 toggle, and state
+ * exchange.
+ */
 public final class SmartMovingClient {
     /** How long to wait after joining for the server's channel before assuming the server lacks the mod. */
     private static final int SERVER_DETECTION_TICKS = 100;
@@ -50,6 +54,11 @@ public final class SmartMovingClient {
     private static int sessionTicks;
     private static boolean serverPresent;
     private static boolean serverAbsenceReported;
+    /** Whether the server answered the first state with its configuration ({@link ConfigSyncMessage}). */
+    private static boolean configKnown;
+    /** The own movement rules and F9 state while the server's are in force, to restore afterwards; else null. */
+    private static Map<String, String> localRules;
+    private static boolean localEnabled;
     private static long sentState;
     private static boolean stateSent;
     private static int lastPlayerCount;
@@ -62,9 +71,9 @@ public final class SmartMovingClient {
         return SmartMovingReborn.CLIENT_CONFIG;
     }
 
-    /** Whether Smart Moving should act: enabled with F9 and supported by the server. */
+    /** Whether Smart Moving should act: enabled with F9, supported by the server and configured by it. */
     public static boolean isActive() {
-        return config().enabled && serverPresent;
+        return config().enabled && serverPresent && configKnown;
     }
 
     /** Called at the end of every client tick. */
@@ -80,6 +89,12 @@ public final class SmartMovingClient {
         sessionTicks++;
 
         while (KeyBindings.TOGGLE.consumeClick()) {
+            if (localRules != null) {
+                // The original's answer to a player without the right to change the server's configuration.
+                message(player, minecraft.hasSingleplayerServer() ? "server_config_locked_local"
+                        : "server_config_locked_remote");
+                continue;
+            }
             config().enabled = !config().enabled;
             chat(player, config().enabled ? "enabled" : "disabled");
         }
@@ -116,6 +131,8 @@ public final class SmartMovingClient {
     }
 
     private static void startSession(ClientPacketListener connection) {
+        restoreLocalRules();
+        configKnown = false;
         session = connection;
         sessionTicks = 0;
         serverPresent = false;
@@ -184,6 +201,39 @@ public final class SmartMovingClient {
             sentState = state;
             stateSent = true;
         }
+    }
+
+    /**
+     * Runs on the client thread. Puts the server's movement rules in force for this connection, keeping the own
+     * ones to restore when it ends, or keeps the own ones.
+     */
+    public static void onConfigSync(ConfigSyncMessage message) {
+        configKnown = true;
+        if (!message.enforced()) {
+            restoreLocalRules();
+            return;
+        }
+        if (localRules == null) {
+            localRules = config().writeMovementRules();
+            localEnabled = config().enabled;
+        }
+        config().loadMovementRules(message.rules())
+                .forEach(warning -> SmartMovingReborn.LOGGER.warn("Server configuration: {}", warning));
+        // The original used the server's switch too, so Smart Moving turned off with F9 is on again.
+        config().enabled = true;
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player != null && config().configChatServer.get()) {
+            message(player, "server_config");
+        }
+    }
+
+    private static void restoreLocalRules() {
+        if (localRules == null) {
+            return;
+        }
+        config().loadMovementRules(localRules);
+        config().enabled = localEnabled;
+        localRules = null;
     }
 
     /** Runs on the client thread. */
@@ -274,8 +324,12 @@ public final class SmartMovingClient {
 
     private static void chat(LocalPlayer player, String key) {
         if (config().configChat.get()) {
-            player.displayClientMessage(Component.translatable("chat." + SmartMovingReborn.MOD_ID + "." + key), false);
+            message(player, key);
         }
+    }
+
+    private static void message(LocalPlayer player, String key) {
+        player.displayClientMessage(Component.translatable("chat." + SmartMovingReborn.MOD_ID + "." + key), false);
     }
 
     /** Adds Smart Moving lines to the left side of the F3 screen for {@code move.debug.state} and {@code move.debug.climb}. */
@@ -289,6 +343,7 @@ public final class SmartMovingClient {
         }
         lines.add("");
         lines.add("[Smart Moving] enabled=" + config().enabled + " server=" + serverPresent
+                + " config=" + (!configKnown ? "pending" : localRules != null ? "server" : "local")
                 + " grab=" + GRAB.pressed);
         lines.add("[Smart Moving] self: " + LOCAL_STATE.describe());
         Entity target = Minecraft.getInstance().crosshairPickEntity;

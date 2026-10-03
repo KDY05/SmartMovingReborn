@@ -53,14 +53,27 @@ public final class ConfigFile {
             }
         }
 
-        boolean needsSave = !exists;
+        boolean needsSave = loadEntries(entries, properties, warnings) || !exists;
+        return new LoadResult(List.copyOf(warnings), needsSave);
+    }
+
+    /** Loads {@code properties} from already split {@code key → value} entries, the same way as from a file. */
+    public static LoadResult load(Map<String, String> values, List<Property<?>> properties) {
+        List<String> warnings = new ArrayList<>();
+        boolean needsSave = loadEntries(new LinkedHashMap<>(values), properties, warnings);
+        return new LoadResult(List.copyOf(warnings), needsSave);
+    }
+
+    private static boolean loadEntries(Map<String, String> entries, List<Property<?>> properties,
+                                       List<String> warnings) {
+        boolean replaced = false;
         for (Property<?> property : properties) {
-            needsSave |= loadProperty(property, entries.remove(property.key()), warnings);
+            replaced |= loadProperty(property, entries.remove(property.key()), warnings);
         }
         for (String unknown : entries.keySet()) {
             warnings.add("unknown key '" + unknown + "' ignored");
         }
-        return new LoadResult(List.copyOf(warnings), needsSave);
+        return replaced;
     }
 
     /** Returns whether the stored value differs from what the file said. */

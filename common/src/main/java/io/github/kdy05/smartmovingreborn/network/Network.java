@@ -14,6 +14,7 @@ public final class Network {
     public static final ResourceLocation STATE_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "state");
     public static final ResourceLocation RELAY_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "relay");
     public static final ResourceLocation SOUND_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "sound");
+    public static final ResourceLocation CONFIG_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "config");
 
     private Network() {
     }
@@ -45,6 +46,12 @@ public final class Network {
     /** Call only when {@link #canSendTo} is true. */
     @ExpectPlatform
     public static void sendTo(ServerPlayer player, StateRelayMessage message) {
+        throw new AssertionError();
+    }
+
+    /** Call only when {@link #canSendTo} is true. */
+    @ExpectPlatform
+    public static void sendTo(ServerPlayer player, ConfigSyncMessage message) {
         throw new AssertionError();
     }
 }

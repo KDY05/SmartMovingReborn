@@ -2,6 +2,7 @@ package io.github.kdy05.smartmovingreborn.forge;
 
 import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
+import io.github.kdy05.smartmovingreborn.network.ConfigSyncMessage;
 import io.github.kdy05.smartmovingreborn.network.ServerNetworkHandler;
 import io.github.kdy05.smartmovingreborn.network.SoundMessage;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
@@ -51,6 +52,14 @@ public final class SmartMovingRebornForgeNetwork {
                     if (sender != null) {
                         ServerNetworkHandler.onSound(sender, message);
                     }
+                    context.get().setPacketHandled(true);
+                })
+                .add();
+        CHANNEL.messageBuilder(ConfigSyncMessage.class, 3, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(ConfigSyncMessage::write)
+                .decoder(ConfigSyncMessage::read)
+                .consumerMainThread((message, context) -> {
+                    SmartMovingClient.onConfigSync(message);
                     context.get().setPacketHandled(true);
                 })
                 .add();
