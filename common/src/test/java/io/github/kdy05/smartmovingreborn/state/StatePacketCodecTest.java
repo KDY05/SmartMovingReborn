@@ -38,6 +38,7 @@ class StatePacketCodecTest {
         FLAGS.put("slow", new Flag(29, s -> s.slow = true, s -> s.slow));
         FLAGS.put("fast", new Flag(30, s -> s.fast = true, s -> s.fast));
         FLAGS.put("wallJumping", new Flag(31, s -> s.wallJumping = true, s -> s.wallJumping));
+        FLAGS.put("smallFlying", new Flag(32, s -> s.smallFlying = true, s -> s.smallFlying));
         FLAGS.put("sneakButton", new Flag(33, s -> s.sneakButton = true, s -> s.sneakButton));
     }
 
@@ -102,7 +103,7 @@ class StatePacketCodecTest {
     }
 
     @Test
-    void allFieldsSetRoundTripAndLeaveTheReservedBitClear() {
+    void allFieldsSetRoundTrip() {
         MovingState s = new MovingState();
         FLAGS.values().forEach(flag -> flag.set().accept(s));
         s.handsClimbType = 15;
@@ -110,7 +111,7 @@ class StatePacketCodecTest {
         s.angleJumpType = 7;
 
         long encoded = StatePacketCodec.encode(s);
-        assertEquals((1L << 34) - 1 - (1L << 32), encoded);
+        assertEquals((1L << 34) - 1, encoded);
         assertEquals(s, decode(encoded));
         assertEquals(encoded, StatePacketCodec.encode(decode(encoded)));
     }

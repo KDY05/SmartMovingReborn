@@ -62,6 +62,14 @@ public final class MovingController {
         return self != null && entity == self.player && SmartMovingClient.isActive();
     }
 
+    /**
+     * Whether {@code entity} is the own player and Smart Moving moves it: active, and not gliding with an elytra or
+     * spinning with a riptide trident, which vanilla moves alone ({@link SelfMoving#vanillaOverride}).
+     */
+    private static boolean isMovingSelf(Entity entity) {
+        return isActiveSelf(entity) && !self.vanillaOverride();
+    }
+
     /** Whether the server should apply Smart Moving to {@code player}, i.e. its client has the mod. */
     private static boolean isActiveOnServer(ServerPlayer player) {
         return Network.canSendTo(player);
@@ -105,7 +113,7 @@ public final class MovingController {
 
     /** {@code LocalPlayer#serverAiStep} TAIL: adjusts the movement input vanilla has just set. */
     public static void afterServerAiStep(Player player) {
-        if (!isActiveSelf(player)) {
+        if (!isMovingSelf(player)) {
             return;
         }
         self.applyInput(SmartMovingReborn.CLIENT_CONFIG);
@@ -141,10 +149,15 @@ public final class MovingController {
      * vanilla's, so that sneak still dismounts.
      */
     public static Boolean isShiftKeyDown(Player player) {
-        if (!isActiveSelf(player) || player.isPassenger()) {
+        if (!isMovingSelf(player) || player.isPassenger()) {
             return null;
         }
         return self.shiftKeyDown(SmartMovingReborn.CLIENT_CONFIG);
+    }
+
+    /** Whether the own player's box is a flyer's, small and a block up ({@link MovingState#smallFlying}). */
+    public static boolean smallFlying() {
+        return self != null && SmartMovingClient.isActive() && self.flyingBox();
     }
 
     /** The own player's jump charge for the charge bar, 0 while Smart Moving is inactive. */
@@ -170,11 +183,11 @@ public final class MovingController {
 
     /**
      * {@code LivingEntity#getFrictionInfluencedSpeed}, the speed of walking and of air control: applies the
-     * original's speed factor, and notes the friction vanilla is about to damp with. Vanilla flying keeps its
-     * speed until flying is ported.
+     * original's speed factor, and notes the friction vanilla is about to damp with. Flying vanilla's way keeps
+     * vanilla's speed; Smart Moving's flying does not get here.
      */
     public static float frictionInfluencedSpeed(Entity entity, float friction, float speed) {
-        if (!isActiveSelf(entity) || self.player.getAbilities().flying) {
+        if (!isMovingSelf(entity) || self.player.getAbilities().flying) {
             return speed;
         }
         self.beforeFrictionMove(friction);
@@ -183,7 +196,7 @@ public final class MovingController {
 
     /** Overrides {@code LivingEntity#onClimbable} when non-null (original {@code isOnLadder}). */
     public static Boolean onClimbable(Entity entity) {
-        if (!isActiveSelf(entity)) {
+        if (!isMovingSelf(entity)) {
             return null;
         }
         return self.onClimbable();
@@ -191,7 +204,7 @@ public final class MovingController {
 
     /** Replaces {@code LivingEntity#handleOnClimbable} when non-null: ladders and vines before moving. */
     public static Vec3 handleOnClimbable(Entity entity, Vec3 motion) {
-        if (!isActiveSelf(entity)) {
+        if (!isMovingSelf(entity)) {
             return null;
         }
         return self.handleOnClimbable(motion, SmartMovingReborn.CLIENT_CONFIG);
@@ -202,7 +215,7 @@ public final class MovingController {
      * in the air and before gravity, which climbing sets (original {@code handleClimbing}).
      */
     public static Vec3 afterFrictionMove(Entity entity, Vec3 motion) {
-        if (!isActiveSelf(entity)) {
+        if (!isMovingSelf(entity)) {
             return motion;
         }
         return self.afterFrictionMove(motion, SmartMovingReborn.CLIENT_CONFIG);
@@ -213,15 +226,15 @@ public final class MovingController {
      * sounds or vibrations of vanilla's (original {@code canTriggerWalking}); climbing has its own sounds.
      */
     public static boolean silentMovement(Entity entity) {
-        return isActiveSelf(entity) && (self.state.climbing || self.state.diving);
+        return isMovingSelf(entity) && (self.state.climbing || self.state.diving);
     }
 
     /**
      * Replaces {@code Player#travel} when true (original {@code moveEntityWithHeading}). Jumps first, then
-     * swimming, which replaces vanilla's movement in water; the rest stays vanilla's.
+     * swimming, which replaces vanilla's movement in water, and Smart Moving's flying; the rest stays vanilla's.
      */
     public static boolean travel(Player player, Vec3 input) {
-        if (!isActiveSelf(player)) {
+        if (!isMovingSelf(player)) {
             return false;
         }
         self.beforeTravel(SmartMovingReborn.CLIENT_CONFIG);
@@ -237,7 +250,7 @@ public final class MovingController {
      * diving replaces it, and with it vanilla's sprint swimming pose and its vertical steering.
      */
     public static boolean updateSwimming(Player player) {
-        if (!isActiveSelf(player) || !SelfSwimming.replacesVanilla(SmartMovingReborn.CLIENT_CONFIG)) {
+        if (!isMovingSelf(player) || !SelfSwimming.replacesVanilla(SmartMovingReborn.CLIENT_CONFIG)) {
             return false;
         }
         player.setSwimming(false);
@@ -246,7 +259,7 @@ public final class MovingController {
 
     /** {@code Player#travel} TAIL: the damping of slides and gliding head jumps, then wall jumps. */
     public static void afterTravel(Player player) {
-        if (!isActiveSelf(player)) {
+        if (!isMovingSelf(player)) {
             return;
         }
         self.afterTravel(SmartMovingReborn.CLIENT_CONFIG);
@@ -258,7 +271,7 @@ public final class MovingController {
      * dipping replaces it. Jumps in lava (out of scope) and in water with swimming and diving off stay vanilla's.
      */
     public static boolean jumpFromGround(Player player) {
-        if (!isActiveSelf(player) || player.isInLava()
+        if (!isMovingSelf(player) || player.isInLava()
                 || player.isInWater() && !SelfSwimming.replacesVanilla(SmartMovingReborn.CLIENT_CONFIG)) {
             return false;
         }
@@ -313,9 +326,13 @@ public final class MovingController {
 
     /**
      * Whether {@code player} is in {@code Pose.SWIMMING} for a Smart Moving move ({@link MovingState#smallPose}).
-     * The own player's climb crawling is known at once, before its state's size flag catches up.
+     * The own player's climb crawling is known at once, before its state's size flag catches up. Elytra gliding
+     * and riptide spins keep vanilla's pose, also before a state that ended the move arrives.
      */
     public static boolean smallPose(Player player) {
+        if (player.isFallFlying() || player.isAutoSpinAttack()) {
+            return false;
+        }
         if (self != null && player == self.player) {
             return SmartMovingClient.isActive() && self.smallPose();
         }

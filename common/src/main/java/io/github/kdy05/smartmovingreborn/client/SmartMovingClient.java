@@ -141,6 +141,7 @@ public final class SmartMovingClient {
         LOCAL_STATE.sneakButton = minecraft.options.keyShift.isDown();
         LOCAL_STATE.jumping = player.input.jumping;
         LOCAL_STATE.small = player.getBbHeight() < 1.0f;
+        LOCAL_STATE.smallFlying = MovingController.smallFlying();
     }
 
     /**
@@ -176,6 +177,7 @@ public final class SmartMovingClient {
             return;
         }
         LOCAL_STATE.small = player.getBbHeight() < 1.0f;
+        LOCAL_STATE.smallFlying = MovingController.smallFlying();
         long state = StatePacketCodec.encode(LOCAL_STATE);
         if (!stateSent || state != sentState) {
             Network.sendToServer(new StateMessage(state));
@@ -223,6 +225,11 @@ public final class SmartMovingClient {
     /** Whether the own player's current movement input sneaks, which vanilla sinks in water by. */
     public static boolean isSneakInput(Player player) {
         return ((LocalPlayer) player).input.shiftKeyDown;
+    }
+
+    /** Whether the camera follows the own player, which vanilla's flying needs to take jump and sneak. */
+    public static boolean isControlledCamera(Player player) {
+        return Minecraft.getInstance().getCameraEntity() == player;
     }
 
     /** Whether a screen takes the input, which keeps a climber hanging on. */

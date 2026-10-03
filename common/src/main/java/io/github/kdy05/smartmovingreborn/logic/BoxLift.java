@@ -24,7 +24,13 @@ final class BoxLift {
          * A crawling box that turns into a swimming one is already where the original's was, so it only takes
          * this reason without moving.
          */
-        SWIM
+        SWIM,
+        /**
+         * Smart Moving's flying or vanilla's with {@code move.levitate.small} raised the bottom of the box
+         * ({@code setHeightOffset(-1)} in {@code updateEntityActionState}). A box already small takes this reason
+         * without moving.
+         */
+        FLY
     }
 
     private final Player player;
@@ -47,6 +53,11 @@ final class BoxLift {
     /** Whether the box is a block up for {@code reason}. */
     boolean is(Reason reason) {
         return this.reason == reason;
+    }
+
+    /** Whether the box is a block up for any reason. */
+    boolean any() {
+        return reason != null;
     }
 
     /** Notes that the box, small and a block up already, now stays so for {@code reason}. */

@@ -24,8 +24,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * The client's own player's Smart Moving state and its per-tick update, like the original's
  * {@code SmartMovingSelf}. The feature classes ({@code logic/crawl}, ...) only decide; this class measures the
  * player, calls them in the original's order and keeps the results. Jumping ({@link SelfJumping}), climbing
- * ({@link SelfClimbing}) and swimming ({@link SelfSwimming}) keep their own state. The shared flags live in {@link #state},
- * which is also what gets sent to the server and read by rendering.
+ * ({@link SelfClimbing}), swimming ({@link SelfSwimming}) and flying ({@link SelfFlying}) keep their own state.
+ * The shared flags live in {@link #state}, which is also what gets sent to the server and read by rendering.
  */
 public final class SelfMoving {
     /** Horizontal speed squared below which the player counts as standing ({@code isStanding}). */
@@ -39,12 +39,13 @@ public final class SelfMoving {
 
     final Player player;
     final MovingState state;
-    /** The box moved a block up while the model stays put, for a head jump, climb crawling or swimming. */
+    /** The box moved a block up while the model stays put, for a head jump, climb crawling, swimming or flying. */
     final BoxLift lift;
     private final ToggleState toggles = new ToggleState();
     private final SelfJumping jumping;
     private final SelfClimbing climbing;
     private final SelfSwimming swimming;
+    private final SelfFlying flying;
     private boolean wasCrawling;
     private boolean groundSprinting;
     private boolean wasRunningWhenSprintStarted;
@@ -74,6 +75,8 @@ public final class SelfMoving {
     private boolean sneakInput;
     /** Where the player's own move started, for the climbing sounds. */
     private Vec3 selfMoveStart;
+    /** The vertical motion before this tick's jumps, which vanilla's flying keeps 0.6 of. */
+    private double travelStartY;
 
     SelfMoving(Player player, MovingState state) {
         this.player = player;
@@ -82,6 +85,7 @@ public final class SelfMoving {
         this.jumping = new SelfJumping(this);
         this.climbing = new SelfClimbing(player, state, jumping::climbJump);
         this.swimming = new SelfSwimming(this);
+        this.flying = new SelfFlying(this);
         reset();
     }
 
@@ -109,6 +113,7 @@ public final class SelfMoving {
         jumping.reset();
         climbing.reset();
         swimming.reset();
+        flying.reset();
         sneakInput = false;
         selfMoveStart = null;
     }
@@ -116,6 +121,7 @@ public final class SelfMoving {
     /** At the start of the tick ({@code beforeOnUpdate}). */
     void beforeTick() {
         jumping.beforeTick();
+        flying.beforeTick();
     }
 
     /** Once per tick, before vanilla turns the input into movement (the original's {@code updateEntityActionState}). */
@@ -128,15 +134,21 @@ public final class SelfMoving {
         grabPressed = grab.pressed;
         sneakInput = sneak.pressed;
         jumping.startActionState();
+        if (vanillaOverride()) {
+            endSmallMoves();
+            return;
+        }
+        Vec3 motion = player.getDeltaMovement();
+        double horizontalSpeedSquare = motion.x * motion.x + motion.z * motion.z;
         boolean flying = player.getAbilities().flying;
-        boolean smartFlying = flying && config.fly.get();
         boolean disabled = player.isPassenger() || player.isSleeping();
         boolean onGround = player.onGround();
 
         boolean crawling = state.crawling;
         // Sliding and head jumping keep the small pose on their own.
         boolean mustCrawl = !state.sliding && !state.headJumping && CrawlLogic.mustCrawl(crawling,
-                fits(Pose.STANDING), fits(Pose.CROUCHING), flying, config.fly.get() || config.levitateSmall.get());
+                fits(Pose.STANDING), fits(Pose.CROUCHING), flying,
+                this.flying.flyEnabled(config) || config.levitateSmall.get() && !player.isSpectator());
         boolean inputContinueCrawl = CrawlLogic.inputContinueCrawl(config.crawlToggle.get(), toggles.isCrawlToggled(),
                 sneak.pressed, config.climbFree.get(), grab.pressed);
         boolean wouldWantCrawl = CrawlLogic.wantCrawl(true, crawling, flying,
@@ -155,10 +167,16 @@ public final class SelfMoving {
         if (!state.crawling) {
             swimming.stopContinueCrawl();
         }
+        if (wasCrawling && !state.crawling && flying) {
+            jumping.tryJump(JumpType.UP, Float.NaN, config);
+        }
 
         climbing.updateInput(grab, sneak, jump, forwardPressed, wasCrawling, wantCrawl, shiftKeyDown(config), disabled,
                 config);
 
+        this.flying.updateActionState(sneak.pressed, grab.pressed, horizontalSpeedSquare, motion.y,
+                state.headJumping, config);
+        boolean smartFlying = this.flying.smartFlying();
         updateSlideAndHeadJump(sneak, grab, flying, onGround, config);
 
         boolean inWater = state.swimming || state.diving;
@@ -171,7 +189,8 @@ public final class SelfMoving {
         boolean wantSprint = SpeedLogic.wantSprint(config.sprint.get(), sprint.pressed,
                 forwardPressed || state.climbing || SwimLogic.sprintInput(state.swimming, state.diving,
                         SmartMovingClient.isMovePressed(player), sneak.pressed, jump.pressed,
-                        config.swimDownOnSneak.get(), config.diveDownOnSneak.get()),
+                        config.swimDownOnSneak.get(), config.diveDownOnSneak.get())
+                        || smartFlying && (SmartMovingClient.isMovePressed(player) || jump.pressed || sneak.pressed),
                 state.sliding, disabled);
 
         if (!onGround && state.fast && !state.climbing && !state.ceilingClimbing && !inWater) {
@@ -193,7 +212,9 @@ public final class SelfMoving {
                 player.isUsingItem(), config.usageSprint.get(), collidedHorizontallyTicks, state.ceilingClimbing);
         boolean swimSprinting = canHorizontallySprint && state.swimming;
         boolean diveSprinting = canHorizontallySprint && !player.verticalCollision && state.diving;
-        state.fast = groundSprinting || climbSprinting || ceilingSprinting || swimSprinting || diveSprinting;
+        boolean flyingSprinting = canHorizontallySprint && !player.verticalCollision && smartFlying;
+        state.fast = groundSprinting || climbSprinting || ceilingSprinting || swimSprinting || diveSprinting
+                || flyingSprinting;
         if (groundSprinting && !wasGroundSprinting) {
             wasRunningWhenSprintStarted = player.isSprinting();
             player.setSprinting(SpeedLogic.standupSprintingOrRunning(state.fast, player.isSprinting(), onGround,
@@ -211,7 +232,7 @@ public final class SelfMoving {
         if (grab.startPressed) {
             swimming.grabStarted(jump.pressed, climbing.wouldWantClimb, wouldWantCrawl, config);
         }
-        Vec3 motion = player.getDeltaMovement();
+        motion = player.getDeltaMovement();
         standing = motion.x * motion.x + motion.z * motion.z < STANDING_SPEED_SQUARE;
 
         jumping.updateInput(jump, left, right, back, forwardPressed, flying, onGround, config);
@@ -304,6 +325,35 @@ public final class SelfMoving {
         }
     }
 
+    /**
+     * Elytra gliding or a riptide spin, which vanilla moves and poses alone: Smart Moving's moves end and wait
+     * for it to finish.
+     */
+    boolean vanillaOverride() {
+        return player.isFallFlying() || player.isAutoSpinAttack();
+    }
+
+    /**
+     * Ends every move in a small box for {@link #vanillaOverride}. A box a block up goes back down to the
+     * model's feet where that fits, so that the player does not appear to jump a block.
+     */
+    private void endSmallMoves() {
+        if (lift.any() && fits(Pose.SWIMMING, -1)) {
+            lift.shift(-1);
+        }
+        lift.reset();
+        state.crawling = false;
+        state.sliding = false;
+        state.headJumping = false;
+        state.crawlClimbing = false;
+        wasCrawling = false;
+        aerodynamic = false;
+        climbing.reset();
+        swimming.reset();
+        flying.reset();
+        SmartMovingClient.sendStateNow(player);
+    }
+
     /** Back to the standing box from a small one, moving the player by {@code dy} without collisions. */
     void standUpFromSmall(double dy) {
         lift.shift(dy);
@@ -347,7 +397,8 @@ public final class SelfMoving {
     /** Whether the own player is in a small box for a Smart Moving move ({@link MovingState#smallPose}). */
     boolean smallPose() {
         // A swimmer's or diver's box keeps the pose, which a grab out of a shallow swim ends before the flags.
-        return state.lying() || state.crawlClimbing || climbing.climbCrawling || swimming.swimmingBox();
+        return state.lying() || state.crawlClimbing || climbing.climbCrawling || swimming.swimmingBox()
+                || flying.flyingBox();
     }
 
     /**
@@ -453,6 +504,7 @@ public final class SelfMoving {
      */
     void beforeTravel(SmartMovingClientConfig config) {
         vanillaDamping = Float.NaN;
+        travelStartY = player.getDeltaMovement().y;
         swimming.beforeTravel();
         jumping.handleJumping(config);
         climbing.beforeTravel(player.zza > 0);
@@ -467,10 +519,29 @@ public final class SelfMoving {
 
     /**
      * After the jumps, instead of vanilla's {@code travel} when true: swimming, diving and dipping, and the land
-     * movement where vanilla would move the player in water ({@link SelfSwimming#travel}).
+     * movement where vanilla would move the player in water ({@link SelfSwimming#travel}); then Smart Moving's
+     * flying ({@link SelfFlying#travel}). Flying vanilla's way with {@code move.fly} off, the original kept
+     * vanilla's vertical motion as it was before the move, damped to 0.6, like vanilla's flying does
+     * ({@code moveEntityWithHeading} 164-171).
      */
     boolean travel(Vec3 input, SmartMovingClientConfig config) {
-        return swimming.travel(input, config);
+        if (!swimming.travel(input, config) && !flying.travel(input, config)) {
+            return false;
+        }
+        if (player.getAbilities().flying && !player.isPassenger() && !flying.flyEnabled(config)) {
+            Vec3 motion = player.getDeltaMovement();
+            player.setDeltaMovement(motion.x, travelStartY * 0.6, motion.z);
+            player.resetFallDistance();
+            player.stopFallFlying();
+        }
+        return true;
+    }
+
+    /** What vanilla's {@code travel} does after moving, which a cancelled one skips. */
+    void finishTravel(Vec3 start) {
+        Vec3 end = player.position();
+        player.checkMovementStatistics(end.x - start.x, end.y - start.y, end.z - start.z);
+        player.calculateEntityAnimation(false);
     }
 
     /** What vanilla sees as the sneak key. */
@@ -595,10 +666,10 @@ public final class SelfMoving {
 
     /**
      * The speed factor of the original's own movement ({@code getSpeedFactor(moveForward, moveStrafing)}) without
-     * its climbing part, which swimming uses: the global factor and the movement speed, the item usage, crawling or
-     * sneaking, and Smart Moving's sprint.
+     * its climbing part, which swimming and flying use: the global factor and the movement speed, the item usage,
+     * crawling or sneaking, and Smart Moving's sprint.
      */
-    float waterSpeedFactor(SmartMovingClientConfig config) {
+    float ownSpeedFactor(SmartMovingClientConfig config) {
         return speedFactor(config) * SpeedLogic.landSpeedFactor(1, itemFactor(config),
                 state.crawling || state.crawlClimbing && !climbing.climbCrawling, config.crawlFactor.get(), state.slow,
                 sneakFactor(config), state.fast, config.sprintFactor.get(), false, 1, false);
@@ -614,10 +685,12 @@ public final class SelfMoving {
     }
 
     /**
-     * At the end of the tick (the original's {@code afterOnUpdate}): the wall counter, the body turn while small,
-     * slide and swim particles, the current taken back while swimming, and the perspective.
+     * At the end of the tick (the original's {@code afterOnLivingUpdate} and {@code afterOnUpdate}): flying on
+     * after touching the ground, the wall counter, the body turn while small, slide and swim particles, the
+     * current taken back while swimming, and the perspective.
      */
     void afterTick(SmartMovingClientConfig config) {
+        flying.afterTick(sneakInput, grabPressed, config);
         collidedHorizontallyTicks = player.horizontalCollision ? collidedHorizontallyTicks + 1 : 0;
         turnBodyWhileSmall(state.swimming || state.diving || state.dipping || state.crawling);
         if (state.sliding) {
@@ -694,6 +767,16 @@ public final class SelfMoving {
     /** The sneak key, read fresh this tick. */
     boolean sneakInput() {
         return sneakInput;
+    }
+
+    /** Flying Smart Moving's way ({@code isFlying}). */
+    boolean smartFlying() {
+        return flying.smartFlying();
+    }
+
+    /** Whether the box is a flyer's, small and a block up. */
+    boolean flyingBox() {
+        return flying.flyingBox();
     }
 
     /** In water the way 1.7.10 saw it ({@code isInWater}). */

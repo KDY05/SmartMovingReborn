@@ -8,13 +8,13 @@ package io.github.kdy05.smartmovingreborn.state;
  *    8  jumping           14 climbing        22-24 angleJumpType      29 slow
  *    9  diving            15 small              25 feetVineClimbing   30 fast
  *   10  dipping           16 fallingAnimation   26 handsVineClimbing  31 wallJumping
- *   11  swimming          17 flyingAnimation                          32 (reserved, always 0)
+ *   11  swimming          17 flyingAnimation                          32 smallFlying
  *                         18 ceilingClimbing                          33 sneakButton
  *                         19 levitating
  * </pre>
- * Bit 32 was the original's rope sliding flag (Ropes+ support, out of scope). It stays reserved so that the
- * positions the original server read (crawling 13, climbing 14, small 15, wallJumping 31, sneak 33, ...)
- * are unchanged.
+ * Bit 32 was the original's rope sliding flag (Ropes+ support, out of scope). This port uses it for
+ * {@code smallFlying}, which the original had no need to send, so that the positions the original server read
+ * (crawling 13, climbing 14, small 15, wallJumping 31, sneak 33, ...) are unchanged.
  */
 public final class StatePacketCodec {
     private StatePacketCodec() {
@@ -32,7 +32,7 @@ public final class StatePacketCodec {
         }
         long state = 0;
         state = bit(state, s.sneakButton);
-        state = bit(state, false); // reserved: rope sliding
+        state = bit(state, s.smallFlying);
         state = bit(state, s.wallJumping);
         state = bit(state, s.fast);
         state = bit(state, s.slow);
@@ -112,7 +112,9 @@ public final class StatePacketCodec {
         s.fast = (state & 1) != 0;
         state >>>= 1;
         s.wallJumping = (state & 1) != 0;
-        state >>>= 2; // skip reserved rope sliding bit
+        state >>>= 1;
+        s.smallFlying = (state & 1) != 0;
+        state >>>= 1;
         s.sneakButton = (state & 1) != 0;
     }
 }

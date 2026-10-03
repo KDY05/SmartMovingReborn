@@ -31,6 +31,12 @@ public final class MovingState {
     public boolean flyingAnimation;
     public boolean fallingAnimation;
     public boolean small;
+    /**
+     * Flying, Smart Moving's way or vanilla's, in a small box a block up ({@code setHeightOffset(-1)} for
+     * {@code isFlying} and {@code move.levitate.small}). The original only sent the box's size; here
+     * {@link #small} also covers vanilla's small poses, so this tells the flying box apart.
+     */
+    public boolean smallFlying;
     public boolean climbing;
     public boolean crawling;
     public boolean crawlClimbing;
@@ -58,9 +64,12 @@ public final class MovingState {
         return climbing && small && !crawlClimbing && !lying();
     }
 
-    /** The moves in a small box, {@code Pose.SWIMMING}: lying, crawl climbing, climb crawling, swimming and diving. */
+    /**
+     * The moves in a small box, {@code Pose.SWIMMING}: lying, crawl climbing, climb crawling, swimming, diving and
+     * flying small.
+     */
     public boolean smallPose() {
-        return lying() || crawlClimbing || climbCrawling() || swimming || diving;
+        return lying() || crawlClimbing || climbCrawling() || swimming || diving || smallFlying;
     }
 
     /** Short human-readable form for the debug screen, e.g. {@code crawling small hands=2}. */
@@ -82,6 +91,7 @@ public final class MovingState {
         addIf(parts, flyingAnimation, "flyingAnim");
         addIf(parts, fallingAnimation, "fallingAnim");
         addIf(parts, small, "small");
+        addIf(parts, smallFlying, "smallFlying");
         addIf(parts, climbing, "climbing");
         addIf(parts, crawling, "crawling");
         addIf(parts, crawlClimbing, "crawlClimbing");

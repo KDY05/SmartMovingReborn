@@ -170,20 +170,24 @@ final class SelfSwimming {
         boolean wasDiving = state.diving;
         boolean wasJumpingOutOfWater = jumpingOutOfWater;
         Vec3 start = player.position();
-        // Vanilla flying until Smart Moving's flying is ported (step 15); the original only skipped its own.
         boolean liquidClimbing = config.climbFree.get() && player.fallDistance <= 3 && moving.wantClimbUp()
                 && player.horizontalCollision && !state.diving;
-        Handled handled = player.getAbilities().flying ? Handled.NOT
-                : handleSwimming(input, moving.waterSpeedFactor(config), wasSwimming, wasDiving, liquidClimbing,
+        // Smart Moving's flying goes on in water; vanilla's swims.
+        Handled handled = moving.smartFlying() ? Handled.NOT
+                : handleSwimming(input, moving.ownSpeedFactor(config), wasSwimming, wasDiving, liquidClimbing,
                 wasJumpingOutOfWater, config);
         if (handled == Handled.MOVED) {
-            finish(start);
+            moving.finishTravel(start);
             return true;
         }
         if (handled == Handled.STANDARD) {
             return false;
         }
         resetSwimming();
+        if (moving.smartFlying()) {
+            // Smart Moving's flying moves the player instead of the land movement.
+            return false;
+        }
         landTick = true;
         if (replacesVanilla(config) && !inWater() && !moving.jumpedThisTick()) {
             // Vanilla still finds water around a box whose bottom is just under the surface, where 1.7.10 did not
@@ -193,9 +197,9 @@ final class SelfSwimming {
         if (!moving.grabPressed()) {
             endSwimming();
         }
-        if (player.isInWater() && !player.getAbilities().flying) {
+        if (player.isInWater()) {
             landTravel(input);
-            finish(start);
+            moving.finishTravel(start);
             return true;
         }
         return false;
@@ -602,13 +606,6 @@ final class SelfSwimming {
         } else {
             player.setDeltaMovement(motion.x * damping, y * 0.98f, motion.z * damping);
         }
-    }
-
-    /** What vanilla's {@code travel} does after moving, which a cancelled one skips. */
-    private void finish(Vec3 start) {
-        Vec3 end = player.position();
-        player.checkMovementStatistics(end.x - start.x, end.y - start.y, end.z - start.z);
-        player.calculateEntityAnimation(false);
     }
 
     // Measuring
