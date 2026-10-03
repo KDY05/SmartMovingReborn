@@ -5,7 +5,5 @@
   "chat.smartmovingreborn.enabled": "Smart Moving enabled",
   "chat.smartmovingreborn.disabled": "Smart Moving disabled",
   "chat.smartmovingreborn.server_missing": "Smart Moving is off: this server does not have Smart Moving Reborn installed",
-  "chat.smartmovingreborn.server_config": "Using Smart Moving server configuration",
-  "chat.smartmovingreborn.server_config_locked_remote": "You have no rights to change the Smart Moving configuration on the remote server.",
-  "chat.smartmovingreborn.server_config_locked_local": "You have no rights to change the Smart Moving configuration on your local server."
+  "chat.smartmovingreborn.server_config": "Using Smart Moving server configuration"
 }

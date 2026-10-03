@@ -89,12 +89,6 @@ public final class SmartMovingClient {
         sessionTicks++;
 
         while (KeyBindings.TOGGLE.consumeClick()) {
-            if (localRules != null) {
-                // The original's answer to a player without the right to change the server's configuration.
-                message(player, minecraft.hasSingleplayerServer() ? "server_config_locked_local"
-                        : "server_config_locked_remote");
-                continue;
-            }
             config().enabled = !config().enabled;
             chat(player, config().enabled ? "enabled" : "disabled");
         }
@@ -219,11 +213,12 @@ public final class SmartMovingClient {
         }
         config().loadMovementRules(message.rules())
                 .forEach(warning -> SmartMovingReborn.LOGGER.warn("Server configuration: {}", warning));
-        // The original used the server's switch too, so Smart Moving turned off with F9 is on again.
+        // The original used the server's switch too, so Smart Moving turned off with F9 is on again (F9 can
+        // still turn it off).
         config().enabled = true;
         LocalPlayer player = Minecraft.getInstance().player;
         if (player != null && config().configChatServer.get()) {
-            message(player, "server_config");
+            chat(player, "server_config");
         }
     }
 
@@ -324,12 +319,8 @@ public final class SmartMovingClient {
 
     private static void chat(LocalPlayer player, String key) {
         if (config().configChat.get()) {
-            message(player, key);
+            player.displayClientMessage(Component.translatable("chat." + SmartMovingReborn.MOD_ID + "." + key), false);
         }
-    }
-
-    private static void message(LocalPlayer player, String key) {
-        player.displayClientMessage(Component.translatable("chat." + SmartMovingReborn.MOD_ID + "." + key), false);
     }
 
     /** Adds Smart Moving lines to the left side of the F3 screen for {@code move.debug.state} and {@code move.debug.climb}. */
