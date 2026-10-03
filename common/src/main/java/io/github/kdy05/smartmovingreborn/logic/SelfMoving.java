@@ -326,11 +326,11 @@ public final class SelfMoving {
     }
 
     /**
-     * Elytra gliding or a riptide spin, which vanilla moves and poses alone: Smart Moving's moves end and wait
-     * for it to finish.
+     * Elytra gliding, a riptide spin or spectating, which vanilla moves and poses alone: Smart Moving's moves end
+     * and wait for it to finish. A spectator passes through blocks, where it would otherwise be made to crawl.
      */
     boolean vanillaOverride() {
-        return player.isFallFlying() || player.isAutoSpinAttack();
+        return player.isFallFlying() || player.isAutoSpinAttack() || player.isSpectator();
     }
 
     /**
