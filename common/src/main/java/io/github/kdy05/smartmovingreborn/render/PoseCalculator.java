@@ -5,6 +5,7 @@ import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.PartPose;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.HumanoidArm;
+import org.joml.Matrix4f;
 
 /**
  * The Smart Render skeleton ({@code SmartRenderModel}) and Smart Moving's poses on it ({@code SmartMovingModel}).
@@ -64,6 +65,16 @@ final class PoseCalculator {
         model.leftArm.resetPose();
         model.rightLeg.resetPose();
         model.leftLeg.resetPose();
+    }
+
+    /** Transform from the breast's space, which the cape and elytra hang from, to model space. */
+    Matrix4f breastTransform() {
+        return breast.world();
+    }
+
+    /** The whole body's tilt forward (outer {@code rotateAngleX}), in radians. */
+    float tilt() {
+        return outer.xRot;
     }
 
     void applyTo(HumanoidModel<?> model) {

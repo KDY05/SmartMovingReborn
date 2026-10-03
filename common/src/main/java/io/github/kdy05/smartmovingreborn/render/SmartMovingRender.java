@@ -23,6 +23,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
@@ -53,6 +54,14 @@ public final class SmartMovingRender {
     private static boolean renderingHand;
     /** Set while the player is drawn in the inventory screen, which keeps vanilla's pose like the original's. */
     private static boolean renderingInventory;
+    /** The player whose model was last given a Smart Moving pose, while its layers are drawn. */
+    private static Entity posedEntity;
+    /** {@link #posedEntity}'s breast transform ({@link PoseCalculator#breastTransform}). */
+    private static Matrix4f posedBreast;
+    /** {@link #posedEntity}'s tilt forward, in radians. */
+    private static float posedTilt;
+    /** The most the cape being drawn may swing back, in degrees. */
+    private static float capeSwingLimit = Float.POSITIVE_INFINITY;
 
     private SmartMovingRender() {
     }
@@ -214,6 +223,7 @@ public final class SmartMovingRender {
     /** {@code PlayerRenderer#render} TAIL: puts back the body yaw {@link #beforeRender} replaced for drawing. */
     public static void afterRender(AbstractClientPlayer player) {
         renderingInventory = false;
+        posedEntity = null;
         OuterFade outer = OUTERS.get(player);
         if (outer == null || Float.isNaN(outer.bodyRot)) {
             return;
@@ -273,6 +283,7 @@ public final class SmartMovingRender {
     public static void setupAnim(HumanoidModel<?> model, Entity entity, float limbSwing, float limbSwingAmount,
                                  float ageInTicks, float netHeadYaw, float headPitch) {
         MovingState state = stateOf(entity);
+        posedEntity = null;
         if (renderingHand || renderingInventory || state == null) {
             return;
         }
@@ -365,6 +376,37 @@ public final class SmartMovingRender {
             return;
         }
         POSED.add(model);
+        posedEntity = entity;
+        posedBreast = POSE.breastTransform();
+        posedTilt = POSE.tilt();
+    }
+
+    /**
+     * {@code CapeLayer#render}, before the cape moves to the back: it hangs from the breast, like Smart Render's
+     * ({@code ModelCapeRenderer}), and the more the body tilts forward, the less it swings back.
+     */
+    public static void beforeCape(Entity entity, PoseStack poseStack) {
+        capeSwingLimit = Float.POSITIVE_INFINITY;
+        if (followBreast(entity, poseStack)) {
+            capeSwingLimit = Math.max(70.523f - posedTilt * Mth.RAD_TO_DEG, 6);
+        }
+    }
+
+    /** The cape's swing back in degrees, at most {@code localAngleMax} while it hangs from a posed breast. */
+    public static float capeSwing(float degrees) {
+        return Math.min(degrees, capeSwingLimit);
+    }
+
+    /**
+     * Moves {@code poseStack} to the breast of {@code entity}'s pose, if its model was just posed. The elytra
+     * did not exist in the original; it follows the breast like the cape.
+     */
+    public static boolean followBreast(Entity entity, PoseStack poseStack) {
+        if (entity != posedEntity) {
+            return false;
+        }
+        poseStack.mulPoseMatrix(posedBreast);
+        return true;
     }
 
     /**

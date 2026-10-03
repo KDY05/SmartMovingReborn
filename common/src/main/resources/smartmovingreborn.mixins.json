@@ -16,7 +16,9 @@
   "client": [
     "client.AbstractClientPlayerMixin",
     "client.CameraAccessor",
+    "client.CapeLayerMixin",
     "client.DebugScreenOverlayMixin",
+    "client.ElytraLayerMixin",
     "client.HumanoidArmorLayerMixin",
     "client.HumanoidModelMixin",
     "client.LivingEntityRendererMixin",

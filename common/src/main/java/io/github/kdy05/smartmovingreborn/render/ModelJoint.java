@@ -55,7 +55,7 @@ final class ModelJoint {
     }
 
     /** Transform from this joint's space to model space. */
-    private Matrix4f world() {
+    Matrix4f world() {
         Matrix4f matrix = parent == null ? new Matrix4f() : parent.world();
         matrix.translate(x / 16, y / 16, z / 16);
         if (ignoreParentRotation) {
