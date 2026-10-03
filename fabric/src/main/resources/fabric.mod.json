@@ -12,7 +12,9 @@
     "JonnyNova (Smart Moving 1.10.2 port)"
   ],
   "contact": {
-    "sources": "https://github.com/kdy05/SmartMovingReborn"
+    "homepage": "https://github.com/kdy05/SmartMovingReborn",
+    "sources": "https://github.com/kdy05/SmartMovingReborn",
+    "issues": "https://github.com/kdy05/SmartMovingReborn/issues"
   },
   "license": "GPL-3.0-or-later",
   "environment": "*",
