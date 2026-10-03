@@ -614,11 +614,12 @@ public final class SelfMoving {
     }
 
     /**
-     * At the end of the tick (the original's {@code afterOnUpdate}): the wall counter, slide particles and the
-     * perspective.
+     * At the end of the tick (the original's {@code afterOnUpdate}): the wall counter, the body turn while small,
+     * slide and swim particles, the current taken back while swimming, and the perspective.
      */
     void afterTick(SmartMovingClientConfig config) {
         collidedHorizontallyTicks = player.horizontalCollision ? collidedHorizontallyTicks + 1 : 0;
+        turnBodyWhileSmall(state.swimming || state.diving || state.dipping || state.crawling);
         if (state.sliding) {
             Vec3 motion = player.getDeltaMovement();
             SlideParticles.spawn(player, motion.x, motion.z, config);
@@ -630,6 +631,33 @@ public final class SelfMoving {
                 player.isSprinting(), config.perspectiveSprintFactor.get(), config.perspectiveRunFactor.get());
         fadingPerspectiveSpeed = SpeedLogic.fadePerspective(fadingPerspectiveSpeed, target,
                 config.perspectiveFadeFactor.get(), movementSpeed);
+    }
+
+    /**
+     * Moving slowly in water or crawling, the body turns towards the movement, at most 75 degrees off the view
+     * ({@code correctOnUpdate}); vanilla only turns it when moving faster. While swinging an arm, towards the
+     * view.
+     */
+    private void turnBodyWhileSmall(boolean small) {
+        double dx = player.getX() - player.xo;
+        double dz = player.getZ() - player.zo;
+        double distance = Math.sqrt(dx * dx + dz * dz);
+        if (!small || distance >= 0.05 || distance <= 0.02) {
+            return;
+        }
+        float target = player.attackAnim > 0 ? player.getYRot() : (float) Mth.atan2(dz, dx) * Mth.RAD_TO_DEG - 90;
+        float body = player.yBodyRot + Mth.wrapDegrees(target - player.yBodyRot) * 0.3f;
+        float offView = Mth.clamp(Mth.wrapDegrees(player.getYRot() - body), -75, 75);
+        player.yBodyRot = player.getYRot() - offView;
+        if (offView * offView > 2500) {
+            player.yBodyRot += offView * 0.2f;
+        }
+        while (player.yBodyRot - player.yBodyRotO < -180) {
+            player.yBodyRotO -= 360;
+        }
+        while (player.yBodyRot - player.yBodyRotO >= 180) {
+            player.yBodyRotO += 360;
+        }
     }
 
     /** The movement speed vanilla's field of view should use instead of the current one. */

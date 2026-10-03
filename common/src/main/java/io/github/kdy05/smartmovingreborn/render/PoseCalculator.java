@@ -16,6 +16,10 @@ final class PoseCalculator {
     private static final float DEGREES_TO_RADIANS = PI / 180;
     /** Leg swing speed at which the crawling animation reaches its full amplitude. */
     private static final float CRAWL_FULL_SPEED = 0.12951545f;
+    /** Speed below which a swimmer treads water, and at which a diver's strokes reach their full amplitude. */
+    private static final float SWIM_SLOW_SPEED = 0.15679921f;
+    /** Speed at which a swimmer's strokes reach their full amplitude. */
+    private static final float SWIM_FULL_SPEED = 0.52264464f;
 
     private final ModelJoint outer = new ModelJoint(null);
     private final ModelJoint torso = new ModelJoint(outer);
@@ -144,6 +148,110 @@ final class PoseCalculator {
         leftArm.zRot = -PI / 8;
         rightArm.yRot = -PI / 2;
         leftArm.yRot = PI / 2;
+    }
+
+    /**
+     * The swimmer's tilt from upright: lying flat while swimming, raised a little while treading water
+     * ({@code bipedOuter.rotateAngleX} of the swimming pose), which the outer joint eases towards.
+     */
+    static float swimTilt(float limbSwingAmount) {
+        return PI / 2 - PI / 8 * swimStandSneakFactor(limbSwingAmount);
+    }
+
+    /** How much a swimmer treads water: fully standing still, and between the slow and full speeds. */
+    private static float swimStandSneakFactor(float limbSwingAmount) {
+        float sneakFactor = Math.min(factor(limbSwingAmount, 0, SWIM_SLOW_SPEED),
+                factor(limbSwingAmount, SWIM_FULL_SPEED, SWIM_SLOW_SPEED));
+        return factor(limbSwingAmount, SWIM_SLOW_SPEED, 0) + sneakFactor;
+    }
+
+    /**
+     * Swimming at the surface, from {@code SmartMovingModel.setRotationAngles}: breaststroke while moving, the
+     * head turning with the strokes; treading water while (nearly) still, the head raised, the limbs paddling
+     * with time and, between the slow and full speeds, stretching and shortening. The body already faces its
+     * movement or the view (see {@link SmartMovingRender#beforeRender}). The head does not follow the view.
+     *
+     * @param tilt the body's tilt, easing towards {@link #swimTilt} ({@link OuterFade})
+     */
+    void swim(float limbSwing, float limbSwingAmount, float ageInTicks, float tilt) {
+        float walkFactor = factor(limbSwingAmount, SWIM_SLOW_SPEED, SWIM_FULL_SPEED);
+        float sneakFactor = Math.min(factor(limbSwingAmount, 0, SWIM_SLOW_SPEED),
+                factor(limbSwingAmount, SWIM_FULL_SPEED, SWIM_SLOW_SPEED));
+        float standFactor = factor(limbSwingAmount, SWIM_SLOW_SPEED, 0);
+        float standSneakFactor = standFactor + sneakFactor;
+        float stroke = Mth.cos(limbSwing / 2 - PI / 2) * walkFactor;
+        float paddle = Mth.cos(ageInTicks * 0.1f);
+
+        head.order = RotationOrder.YXZ;
+        head.yRot = stroke;
+        head.xRot = -PI / 4 * standSneakFactor;
+        head.z = -2;
+
+        outer.xRot = tilt;
+        breast.yRot = stroke;
+        body.yRot = stroke;
+
+        rightArm.order = RotationOrder.YZX;
+        leftArm.order = RotationOrder.YZX;
+        rightArm.zRot = PI * 3 / 4 + paddle * standSneakFactor * 0.8f;
+        leftArm.zRot = -PI * 3 / 4 - paddle * standSneakFactor * 0.8f;
+        // Java's remainder keeps the sign of the distance, like the original's.
+        rightArm.xRot = (limbSwing * 0.5f % (PI * 2) - PI) * walkFactor + PI / 8 * standSneakFactor;
+        leftArm.xRot = ((limbSwing * 0.5f + PI) % (PI * 2) - PI) * walkFactor + PI / 8 * standSneakFactor;
+
+        rightLeg.xRot = Mth.cos(limbSwing) * SWIM_FULL_SPEED * walkFactor;
+        leftLeg.xRot = Mth.cos(limbSwing + PI) * SWIM_FULL_SPEED * walkFactor;
+        float legSpread = PI / 8 * standSneakFactor + paddle * 0.4f * (standFactor - sneakFactor);
+        rightLeg.zRot = legSpread;
+        leftLeg.zRot = -legSpread;
+        float legScale = 1 + (Mth.cos(ageInTicks * 0.1f + PI / 2) - 1) * 0.15f * sneakFactor;
+        rightLeg.yScale = legScale;
+        leftLeg.yScale = legScale;
+        float armScale = 1 + (Mth.cos(ageInTicks * 0.1f - PI / 2) - 1) * 0.15f * sneakFactor;
+        rightArm.yScale = armScale;
+        leftArm.yScale = armScale;
+    }
+
+    /**
+     * The diver's tilt from upright ({@code bipedOuter.rotateAngleX} of the diving pose): along the way it moves,
+     * a little short of flat while floating still, upright while jumping.
+     *
+     * @param verticalAngle the movement's angle above the horizontal, -pi/2 to pi/2
+     */
+    static float diveTilt(boolean levitating, boolean jumping, float verticalAngle) {
+        return levitating ? PI * 3 / 8 : jumping ? 0 : PI / 2 - verticalAngle;
+    }
+
+    /**
+     * Diving, from {@code SmartMovingModel.setRotationAngles}: the head raised, the legs kicking sideways and the
+     * arms sweeping with the whole distance moved, spread out while still. The body already faces its movement
+     * (see {@link SmartMovingRender#beforeRender}).
+     *
+     * @param tilt     the body's tilt, easing towards {@link #diveTilt} ({@link OuterFade})
+     * @param speed    the eased whole speed ({@code currentSpeed})
+     * @param distance the whole distance moved so far ({@code totalDistance})
+     */
+    void dive(float tilt, float speed, float distance) {
+        float stroke = distance * 0.7f;
+        float walkFactor = factor(speed, 0, SWIM_SLOW_SPEED);
+        float standFactor = factor(speed, SWIM_SLOW_SPEED, 0);
+
+        head.xRot = -PI / 4;
+        head.z = -2;
+        outer.xRot = tilt;
+
+        rightLeg.zRot = (Mth.cos(stroke) + 1) * SWIM_FULL_SPEED * walkFactor + PI / 8 * standFactor;
+        leftLeg.zRot = (Mth.cos(stroke + PI) - 1) * SWIM_FULL_SPEED * walkFactor - PI / 8 * standFactor;
+        float legScale = 1 + (Mth.cos(stroke - PI / 2) - 1) * 0.25f * walkFactor;
+        rightLeg.yScale = legScale;
+        leftLeg.yScale = legScale;
+
+        rightArm.zRot = (Mth.cos(stroke + PI) * SWIM_FULL_SPEED * 2.5f + PI / 2) * walkFactor
+                + PI * 3 / 4 * standFactor;
+        leftArm.zRot = (Mth.cos(stroke) * SWIM_FULL_SPEED * 2.5f - PI / 2) * walkFactor - PI * 3 / 4 * standFactor;
+        float armScale = 1 + (Mth.cos(stroke + PI / 2) - 1) * 0.15f * walkFactor;
+        rightArm.yScale = armScale;
+        leftArm.yScale = armScale;
     }
 
     /**

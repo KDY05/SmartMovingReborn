@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Smart Render's {@code SmartStatistics} for the climbing animation: like vanilla's walking animation, but for
+ * Smart Render's {@code SmartStatistics} for the climbing and diving animations: like vanilla's walking animation, but for
  * the vertical movement and the whole movement. Each tick the speed eases towards four times the distance
  * moved, and the distance adds up the speed. Horizontal movement uses vanilla's walking animation, which is
  * the same for players. Client only.
@@ -65,6 +65,11 @@ final class MotionStatistics {
 
     float distance(float partialTicks) {
         return all.total(partialTicks);
+    }
+
+    /** The eased whole speed ({@code currentSpeed}). */
+    float speed(float partialTicks) {
+        return all.speed(partialTicks);
     }
 
     /**
