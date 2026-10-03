@@ -38,6 +38,8 @@ public final class SmartMovingRender {
     private static final double CEILING_STILL_DISTANCE = 0.015;
     /** Moving less than this per tick, a sneaking swimmer faces the view instead of its movement. */
     private static final double SWIM_SNEAK_STILL_DISTANCE = 0.005;
+    /** Moving less than this per tick horizontally, a flyer faces the view instead of its movement. */
+    private static final double FLY_STILL_DISTANCE = 0.05;
     /** Each player's whole-body rotation as last drawn. */
     private static final Map<Entity, OuterFade> OUTERS = new WeakHashMap<>();
     /** Each climber's limb settings as last drawn. */
@@ -141,9 +143,14 @@ public final class SmartMovingRender {
                     horizontalAngle, true, time);
             outer.viewOffset = 0;
         } else if (isFlyPose(state)) {
-            // Like diving, the original's choice of the view only applied before moving at all.
+            // Faces the way it flies, or the view while hardly moving horizontally (unlike diving, whose choice
+            // went by the whole distance ever moved).
+            double dx = player.getX() - player.xo;
+            double dz = player.getZ() - player.zo;
+            float facing = dx * dx + dz * dz < FLY_STILL_DISTANCE * FLY_STILL_DISTANCE
+                    ? Mth.rotLerp(partialTicks, player.yRotO, player.getYRot()) * Mth.DEG_TO_RAD : horizontalAngle;
             outer.update(PoseCalculator.flyTilt(state.jumping, MotionStatistics.of(player).speed(partialTicks),
-                    verticalAngle(player)), true, horizontalAngle, true, time);
+                    verticalAngle(player)), true, facing, true, time);
             outer.viewOffset = 0;
         } else if (state.headJumping) {
             outer.update(Mth.PI / 2 - verticalAngle(player), true, horizontalAngle, true, time);
