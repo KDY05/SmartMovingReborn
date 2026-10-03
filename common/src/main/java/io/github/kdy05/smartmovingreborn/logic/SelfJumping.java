@@ -136,12 +136,16 @@ final class SelfJumping {
 
     /**
      * Before vanilla moves the player ({@code handleJumping}): the normal jump vanilla asked for, charging and
-     * releasing a charged jump or head jump, and side and back jumps. Jumps in water join in step 14.
+     * releasing a charged jump or head jump, and side and back jumps; none while swimming or diving. The jump
+     * while dipping joins in step 14-2.
      */
     void handleJumping(SmartMovingClientConfig config) {
         boolean jumpInput = moving.jumpInput();
         if (blockJumpTillButtonRelease && !jumpInput) {
             blockJumpTillButtonRelease = false;
+        }
+        if (state.swimming || state.diving) {
+            return;
         }
         boolean onGround = player.onGround();
         boolean jump = jumpAvoided && onGround;

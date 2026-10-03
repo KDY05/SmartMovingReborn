@@ -38,6 +38,13 @@ public abstract class PlayerMixin {
         MovingController.afterTravel(smartmovingreborn$self());
     }
 
+    @Inject(method = "updateSwimming", at = @At("HEAD"), cancellable = true)
+    private void smartmovingreborn$updateSwimming(CallbackInfo ci) {
+        if (MovingController.updateSwimming(smartmovingreborn$self())) {
+            ci.cancel();
+        }
+    }
+
     @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
     private void smartmovingreborn$jumpFromGround(CallbackInfo ci) {
         if (MovingController.jumpFromGround(smartmovingreborn$self())) {

@@ -58,9 +58,9 @@ public final class MovingState {
         return climbing && small && !crawlClimbing && !lying();
     }
 
-    /** The moves in a small box, {@code Pose.SWIMMING}: lying, crawl climbing and climb crawling. */
+    /** The moves in a small box, {@code Pose.SWIMMING}: lying, crawl climbing, climb crawling, swimming and diving. */
     public boolean smallPose() {
-        return lying() || crawlClimbing || climbCrawling();
+        return lying() || crawlClimbing || climbCrawling() || swimming || diving;
     }
 
     /** Short human-readable form for the debug screen, e.g. {@code crawling small hands=2}. */

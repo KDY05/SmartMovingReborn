@@ -28,6 +28,13 @@ public final class MovingController {
      * field of view of 70 and more as it widens.
      */
     private static final float LYING_EYE_HEIGHT = 0.55f;
+    /**
+     * Where a swimmer's or diver's eyes are for the water, above the box's bottom: the original's
+     * ({@code posY + getEyeHeight()}, 1.74 above its feet and its swimming box a block up). The view stays at
+     * {@link #LYING_EYE_HEIGHT}, which at the surface a swimmer floats at would count as under water, since vanilla
+     * looks for water 0.11 below the eyes.
+     */
+    private static final double SWIM_FLUID_EYE_HEIGHT = 0.74;
 
     /**
      * The client's own player, set when it is constructed. Always null on a dedicated server, so the hooks in
@@ -209,13 +216,32 @@ public final class MovingController {
         return isActiveSelf(entity) && self.state.climbing;
     }
 
-    /** Replaces {@code Player#travel} when true (original {@code moveEntityWithHeading}). Jumps first. */
+    /**
+     * Replaces {@code Player#travel} when true (original {@code moveEntityWithHeading}). Jumps first, then
+     * swimming, which replaces vanilla's movement in water; the rest stays vanilla's.
+     */
     public static boolean travel(Player player, Vec3 input) {
         if (!isActiveSelf(player)) {
             return false;
         }
         self.beforeTravel(SmartMovingReborn.CLIENT_CONFIG);
+        if (self.travel(input, SmartMovingReborn.CLIENT_CONFIG)) {
+            self.afterTravel(SmartMovingReborn.CLIENT_CONFIG);
+            return true;
+        }
         return false;
+    }
+
+    /**
+     * Replaces {@code Player#updateSwimming} when true, keeping vanilla's swimming off: Smart Moving's swimming or
+     * diving replaces it, and with it vanilla's sprint swimming pose and its vertical steering.
+     */
+    public static boolean updateSwimming(Player player) {
+        if (!isActiveSelf(player) || !SelfSwimming.replacesVanilla(SmartMovingReborn.CLIENT_CONFIG)) {
+            return false;
+        }
+        player.setSwimming(false);
+        return true;
     }
 
     /** {@code Player#travel} TAIL: the damping of slides and gliding head jumps, then wall jumps. */
@@ -328,6 +354,19 @@ public final class MovingController {
         }
         player.setPose(Pose.SWIMMING);
         return true;
+    }
+
+    /**
+     * The eye height {@code Entity#updateFluidOnEyes} looks for water at, which decides breathing on the server and
+     * the underwater state on the client: the original's for a Smart Moving swimmer or diver
+     * ({@link #SWIM_FLUID_EYE_HEIGHT}), otherwise vanilla's.
+     */
+    public static double fluidEyeY(Entity entity, double eyeY) {
+        if (!(entity instanceof Player player) || player.getPose() != Pose.SWIMMING) {
+            return eyeY;
+        }
+        MovingState state = stateOf(player);
+        return state != null && (state.swimming || state.diving) ? player.getY() + SWIM_FLUID_EYE_HEIGHT : eyeY;
     }
 
     /** Overrides {@code Player#getDimensions} when non-null. */

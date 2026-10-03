@@ -210,6 +210,17 @@ public final class SmartMovingClient {
         return ((LocalPlayer) player).input.forwardImpulse > 0;
     }
 
+    /** Whether the own player's current movement input moves in any direction. */
+    public static boolean isMovePressed(Player player) {
+        Input input = ((LocalPlayer) player).input;
+        return input.forwardImpulse != 0 || input.leftImpulse != 0;
+    }
+
+    /** Whether the own player's current movement input sneaks, which vanilla sinks in water by. */
+    public static boolean isSneakInput(Player player) {
+        return ((LocalPlayer) player).input.shiftKeyDown;
+    }
+
     /** Whether a screen takes the input, which keeps a climber hanging on. */
     public static boolean isInputBlocked() {
         return Minecraft.getInstance().screen != null;

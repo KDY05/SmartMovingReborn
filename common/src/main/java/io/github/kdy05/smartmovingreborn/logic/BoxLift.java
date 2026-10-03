@@ -18,7 +18,13 @@ final class BoxLift {
         /** A head jump raised the bottom of the box ({@code setHeightOffset(-1)} in {@code tryJump}). */
         HEAD_JUMP,
         /** Climb crawling shrank a standing box from below ({@code setHeightOffset(-1)} on climb crawling). */
-        CLIMB_CRAWL
+        CLIMB_CRAWL,
+        /**
+         * Swimming or diving raised the bottom of the box ({@code setHeightOffset(-1)} in {@code handleSwimming}).
+         * A crawling box that turns into a swimming one is already where the original's was, so it only takes
+         * this reason without moving.
+         */
+        SWIM
     }
 
     private final Player player;
@@ -41,6 +47,11 @@ final class BoxLift {
     /** Whether the box is a block up for {@code reason}. */
     boolean is(Reason reason) {
         return this.reason == reason;
+    }
+
+    /** Notes that the box, small and a block up already, now stays so for {@code reason}. */
+    void retag(Reason reason) {
+        this.reason = reason;
     }
 
     /** Forgets that the box is up for {@code reason}, leaving the player where it is. */
