@@ -33,8 +33,6 @@ public final class SmartMovingClientConfig extends SmartMovingConfig {
             .min(2);
     public final BooleanProperty climbJumpBackHeadOnGrab = on("move.jump.climb.back.head.on.grab",
             "Whether pressing or not pressing the grab button while climb jumping back results in a head jump");
-    public final BooleanProperty displayExhaustionBar = on("move.gui.exhaustion.bar",
-            "Whether to display the exhaustion bar in the game overlay");
     public final BooleanProperty displayJumpChargeBar = on("move.gui.jump.charge.bar",
             "Whether to display the jump charge bar in the game overlay");
     public final BooleanProperty sneakToggle = off("move.sneak.toggle", "To switch on/off sneak toggling");

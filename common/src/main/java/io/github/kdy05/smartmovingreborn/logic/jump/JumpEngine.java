@@ -7,7 +7,7 @@ import net.minecraft.util.Mth;
  * The jump calculation shared by every Smart Moving jump: the original's {@code tryJump} (2002-2117) and
  * {@code getJumpMoving}, with the per type and speed factors of {@code SmartMovingClientConfig} (145-506).
  * Pure functions, so they can be tested against the original. The caller decides when to jump and applies
- * the result. Jump exhaustion joins with exhaustion in step 17.
+ * the result. Jump exhaustion is left out with the other exhaustion (only Easy is ported).
  */
 public final class JumpEngine {
     /** The original's ground speed cap for jump boosts ({@code getMaxHorizontalMotion}). */

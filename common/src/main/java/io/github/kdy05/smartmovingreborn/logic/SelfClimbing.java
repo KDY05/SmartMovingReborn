@@ -487,7 +487,7 @@ final class SelfClimbing {
 
     /**
      * Hanging on a ceiling block from the config list in the player's column, one or two cells above the top of
-     * the box ({@code handleCeilingClimbing}, without the exhaustion of step 17).
+     * the box ({@code handleCeilingClimbing}, without its exhaustion, which Easy left off).
      *
      * @return the vertical motion, or NaN if not hanging on a ceiling
      */

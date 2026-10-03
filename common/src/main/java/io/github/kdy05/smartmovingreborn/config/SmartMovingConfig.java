@@ -5,10 +5,10 @@ import java.util.function.BooleanSupplier;
 /**
  * Movement rules shared by client and server, ported from the original {@code SmartMovingConfig}.
  * <p>
- * Key names and comments follow the original. Defaults are the original's Easy preset: switches that the
- * original enabled only in Medium or Hard (exhaustion and hunger rework) are off, and Easy-specific numbers
- * are used where the original defined them. Out of scope and therefore missing: in-game speed manipulation,
- * preset cycling and per-user presets, lava swimming, and other-mod compatibility.
+ * Key names and comments follow the original. Defaults are the original's Easy preset, the only one ported.
+ * The original's presets differed only in exhaustion and hunger, which Easy left off, so those options are
+ * missing along with the other parts out of scope: in-game speed manipulation, preset cycling and per-user
+ * presets, lava swimming, and other-mod compatibility.
  */
 public abstract class SmartMovingConfig extends PropertySet {
     public static final String CLIMB_FREE = "free";
@@ -65,21 +65,6 @@ public abstract class SmartMovingConfig extends PropertySet {
     public final FloatProperty climbFallMaximumDistance = positive("move.climb.fall.maximum.distance", 3,
             "Distance in blocks to fall to block all climbing attempts (>= \"move.climb.fall.damage.start.distance\")")
             .min(climbFallDamageStartDistance::get);
-    public final BooleanProperty climbExhaustion = off("move.climb.exhaustion", "To switch on/off exhaustion while climbing");
-    public final FloatProperty climbExhaustionStart = positive("move.climb.exhaustion.start", 60,
-            "Maximum exhaustion to start climbing (>= 0)");
-    public final FloatProperty climbExhaustionStop = positive("move.climb.exhaustion.stop", 80,
-            "Maximum exhaustion to climb (>= \"move.climb.exhaustion.start\")").min(climbExhaustionStart::get);
-    public final FloatProperty climbStrafeExhaustionGain = positive("move.climb.strafe.exhaustion.gain", 1.1f,
-            "Exhaustion added every tick while climbing horizontally (>= 0)");
-    public final FloatProperty climbUpExhaustionGain = positive("move.climb.up.exhaustion.gain", 1.2f,
-            "Exhaustion added every tick while climbing up (>= 0)");
-    public final FloatProperty climbDownExhaustionGain = positive("move.climb.down.exhaustion.gain", 1.05f,
-            "Exhaustion added every tick while climbing down (>= 0)");
-    public final FloatProperty climbStrafeUpExhaustionGain = positive("move.climb.strafe.up.exhaustion.gain", 1.3f,
-            "Exhaustion added every tick while climbing diagonally up (>= 0)");
-    public final FloatProperty climbStrafeDownExhaustionGain = positive("move.climb.strafe.down.exhaustion.gain", 1.25f,
-            "Exhaustion added every tick while climbing diagonally down (>= 0)");
 
     // Ceiling climbing
 
@@ -90,15 +75,6 @@ public abstract class SmartMovingConfig extends PropertySet {
     public final StringListProperty ceilingClimbBlocks = list("move.climb.ceiling.configuration",
             new String[]{"minecraft:iron_bars", "#minecraft:trapdoors[half=bottom,open=false]"},
             "To define which blocks are ceiling climbable (syntax: block id or #tag, optionally followed by [state=value,...]; separator: ',')");
-    public final BooleanProperty ceilingClimbExhaustion = off("move.climb.ceiling.exhaustion",
-            "To switch on/off exhaustion while climbing along ceilings");
-    public final FloatProperty ceilingClimbExhaustionStart = positive("move.climb.ceiling.exhaustion.start", 40,
-            "Maximum exhaustion to start climbing along ceilings (>= 0)");
-    public final FloatProperty ceilingClimbExhaustionStop = positive("move.climb.ceiling.exhaustion.stop", 60,
-            "Maximum exhaustion to climbing along ceilings (>= \"move.climb.ceiling.exhaustion.start\")")
-            .min(ceilingClimbExhaustionStart::get);
-    public final FloatProperty ceilingClimbExhaustionGain = positive("move.climb.ceiling.exhaustion.gain", 1.3f,
-            "Exhaustion added every tick while climbing along ceilings (>= 0)");
 
     // Swimming and diving
 
@@ -124,14 +100,6 @@ public abstract class SmartMovingConfig extends PropertySet {
             "Below you find the options for standard vanilla Minecraft sprinting (sometimes referred as \"running\" here)",
             on("move.run", "To switch on/off standard sprinting"));
     public final FloatProperty runFactor = factor("move.run.factor", 1.3f, "Standard sprinting factor (>= 1.1)").min(1.1f);
-    public final BooleanProperty runExhaustion = off("move.run.exhaustion", "To switch on/off standard sprinting exhaustion")
-            .dependsOn(run::get);
-    public final FloatProperty runExhaustionStart = positive("move.exhaustion.run.start", 75,
-            "Maximum exhaustion to start a standard sprint (>= 0)");
-    public final FloatProperty runExhaustionStop = positive("move.exhaustion.run.stop", 100,
-            "Maximum exhaustion to continue a standard sprint (>= \"move.exhaustion.run.start\")").min(runExhaustionStart::get);
-    public final FloatProperty runExhaustionGainFactor = positive("move.exhaustion.run.gain.factor", 1.5f,
-            "Exhaustion gain factor while standard sprinting (>= 0)");
 
     public final BooleanProperty sprint = section("Generic sprinting",
             "Below you find the options for Smart Moving's generic sprinting available for many different smart movings plus standard walking",
@@ -139,14 +107,6 @@ public abstract class SmartMovingConfig extends PropertySet {
     public final FloatProperty sprintFactor = factor("move.sprint.factor", 1.5f,
             "Generic sprinting factor (>= 1.1 AND >= 'move.run.factor' + 0.1 if relevant)")
             .min(() -> run.get() ? runFactor.get() + 0.1f : 1.1f);
-    public final BooleanProperty sprintExhaustion = off("move.sprint.exhaustion", "To switch on/off sprinting exhaustion")
-            .dependsOn(sprint::get);
-    public final FloatProperty sprintExhaustionStart = positive("move.exhaustion.sprint.start", 50,
-            "Maximum exhaustion to start a sprint (>= 0)");
-    public final FloatProperty sprintExhaustionStop = positive("move.exhaustion.sprint.stop", 100,
-            "Maximum exhaustion to continue a sprint (>= \"move.exhaustion.sprint.start\")").min(sprintExhaustionStart::get);
-    public final FloatProperty sprintExhaustionGainFactor = increasing("move.exhaustion.sprint.gain.factor", 2,
-            "Exhaustion gain factor while sprinting (>= 1)");
 
     // Sneaking, crawling, sliding
 
@@ -242,7 +202,7 @@ public abstract class SmartMovingConfig extends PropertySet {
             "Vertical sprint jumping factor relative to default jump height (>= 0)");
 
     public final BooleanProperty jumpCharge = section("Charged jumping",
-            "Below you find all charged jump specific options except those for exhaustion.",
+            "Below you find all charged jump specific options.",
             on("move.jump.charge", "Relevant only if \"move.jump\" is not false")).dependsOn(jump::get);
     public final FloatProperty jumpChargeMaximum = positive("move.jump.charge.maximum", 20,
             "Maximum jump charge (counts up one per tick) (>= 0)");
@@ -252,7 +212,7 @@ public abstract class SmartMovingConfig extends PropertySet {
             "To switch between charged jump and charge cancel on sneak button release while jump charging");
 
     public final BooleanProperty headJump = section("Head jumping",
-            "Below you find all head jump and fall specific options except those for exhaustion.",
+            "Below you find all head jump and fall specific options.",
             on("move.jump.head.charge", "Relevant only if \"move.jump\" is not false")).dependsOn(jump::get);
     public final FloatProperty headJumpControlFactor = decreasing("move.jump.head.control.factor", 0.2f,
             "Head jump control movement factor (>= 0, <= 1, relative to default air movement speed)");
@@ -264,7 +224,7 @@ public abstract class SmartMovingConfig extends PropertySet {
             "Damage factor applied to the remaining distance when impacting head ahead (>= 1)");
 
     public final BooleanProperty angleJumpSide = section("Side and Back jumping",
-            "Below you find all side and back jump specific options except those for exhaustion.",
+            "Below you find all side and back jump specific options.",
             on("move.jump.angle.side", "To switch on/off side jumping"));
     public final BooleanProperty angleJumpBack = on("move.jump.angle.back", "To switch on/off back jumping");
     public final FloatProperty angleJumpHorizontalFactor = factor("move.jump.angle.horizontal.factor", 0.3f,
@@ -273,7 +233,7 @@ public abstract class SmartMovingConfig extends PropertySet {
             "Vertical jump speed factor for side and back jumps (>= 0)");
 
     public final BooleanProperty climbUpJump = section("Climb jumping",
-            "Below you find all climb up jump specific options except those for exhaustion.",
+            "Below you find all climb up jump specific options.",
             on("move.jump.climb.up", "To switch on/off jumping up while climbing"));
     public final FloatProperty climbUpJumpVerticalFactor = decreasing("move.jump.climb.up.vertical.factor",
             "Vertical jump speed factor for jumping while climbing (>= 0, <= 1)");
@@ -281,7 +241,7 @@ public abstract class SmartMovingConfig extends PropertySet {
             "Additional vertical jump speed factor for jumping while climbing with hands only (>= 0, <= 1)");
 
     public final BooleanProperty climbBackUpJump = section("Climb back jumping",
-            "Below you find all climb back jump specific options except those for exhaustion.",
+            "Below you find all climb back jump specific options.",
             on("move.jump.climb.back.up", "To switch on/off jumping back while climbing"));
     public final FloatProperty climbBackUpJumpVerticalFactor = decreasing("move.jump.climb.back.up.vertical.factor", 0.2f,
             "Vertical jump speed factor for jumping back while climbing (>= 0, <= 1)");
@@ -293,7 +253,7 @@ public abstract class SmartMovingConfig extends PropertySet {
             "Additional horizontal jump speed factor for jumping back while climbing with hands only (>= 0, <= 1)");
 
     public final BooleanProperty climbBackHeadJump = section("Climb back head jumping",
-            "Below you find all climb back head jump specific options except those for exhaustion.",
+            "Below you find all climb back head jump specific options.",
             on("move.jump.climb.back.head", "To switch on/off head jumping back while climbing"));
     public final FloatProperty climbBackHeadJumpVerticalFactor = decreasing("move.jump.climb.back.head.vertical.factor", 0.2f,
             "Additional vertical jump speed factor for head jumping back while climbing (>= 0, <= 1)");
@@ -305,7 +265,7 @@ public abstract class SmartMovingConfig extends PropertySet {
             "Additional horizontal jump speed factor for head jumping while climbing with hands only (>= 0, <= 1)");
 
     public final BooleanProperty wallUpJump = section("Wall jumping",
-            "Below you find all wall jump specific options except those for exhaustion.",
+            "Below you find all wall jump specific options.",
             on("move.jump.wall", "To switch on/off wall jumping"));
     public final FloatProperty wallUpJumpVerticalFactor = decreasing("move.jump.wall.vertical.factor", 0.4f,
             "Vertical jump speed factor for wall jumping (>= 0, <= 1)");
@@ -317,7 +277,7 @@ public abstract class SmartMovingConfig extends PropertySet {
             "Tolerance angle in degree for wall jumping orthogonally (>= 0, <= 45)");
 
     public final BooleanProperty wallHeadJump = section("Wall head jumping",
-            "Below you find all wall head jump specific options except those for exhaustion.",
+            "Below you find all wall head jump specific options.",
             on("move.jump.wall.head", "To switch on/off wall head jumping"));
     public final FloatProperty wallHeadJumpVerticalFactor = decreasing("move.jump.wall.head.vertical.factor", 0.3f,
             "Vertical jump speed factor for wall head jumping (>= 0, <= 1)");
@@ -326,195 +286,6 @@ public abstract class SmartMovingConfig extends PropertySet {
     public final FloatProperty wallHeadJumpFallMaximumDistance = positive("move.jump.wall.head.fall.maximum.distance", 3,
             "Distance in blocks to fall to block all wall head jumping attempts (>= \"move.jump.wall.fall.maximum.distance\")")
             .min(wallUpJumpFallMaximumDistance::get);
-
-    // Jump exhaustion
-
-    public final BooleanProperty jumpExhaustion = section("Jump exhaustion",
-            "Below you find the exhaustion options for the different jump types. At runtime all relevant options are combined together to form the specific exhaustion value",
-            on("move.jump.exhaustion", "To switch on/off jump exhaustion"));
-    public final FloatProperty jumpExhaustionGainFactor = factor("move.jump.exhaustion.gain.factor",
-            "To manipulate the exhaustion increase by a jump (>= 0)");
-    public final FloatProperty jumpExhaustionStopFactor = factor("move.jump.exhaustion.stop.factor",
-            "To manipulate maximum exhaustion to jump (>= 0)");
-
-    public final BooleanProperty upJumpExhaustion = on("move.jump.up.exhaustion", "To switch on/off up jump exhaustion")
-            .dependsOn(jumpExhaustion::get);
-    public final FloatProperty upJumpExhaustionGainFactor = factor("move.jump.up.exhaustion.gain.factor",
-            "To manipulate the exhaustion increase by a jump up (>= 0)");
-    public final FloatProperty upJumpExhaustionStopFactor = factor("move.jump.up.exhaustion.stop.factor",
-            "To manipulate maximum exhaustion to jump up (>= 0)");
-
-    public final BooleanProperty climbJumpExhaustion = off("move.jump.climb.exhaustion", "To switch on/off climb jump exhaustion")
-            .dependsOn(jumpExhaustion::get);
-    public final FloatProperty climbJumpExhaustionGainFactor = factor("move.climb.jump.exhaustion.gain.factor",
-            "To manipulate the exhaustion increase by jumping while climbing (>= 0)");
-    public final FloatProperty climbJumpExhaustionStopFactor = factor("move.climb.jump.exhaustion.stop.factor",
-            "To manipulate maximum exhaustion to jumping while climbing (>= 0)");
-    public final BooleanProperty climbJumpUpExhaustion = on("move.jump.climb.up.exhaustion", "To switch on/off climb up jump exhaustion")
-            .dependsOn(climbJumpExhaustion::get);
-    public final FloatProperty climbJumpUpExhaustionGainFactor = factor("move.jump.climb.up.exhaustion.gain.factor", 40,
-            "To manipulate the exhaustion increase by a jump up while climbing (>= 0)");
-    public final FloatProperty climbJumpUpExhaustionStopFactor = factor("move.jump.climb.up.exhaustion.stop.factor", 60,
-            "To manipulate maximum exhaustion to jump up while climbing (>= 0)");
-    public final BooleanProperty climbJumpBackUpExhaustion = on("move.jump.climb.back.up.exhaustion",
-            "To switch on/off climb back jump exhaustion").dependsOn(climbJumpExhaustion::get);
-    public final FloatProperty climbJumpBackUpExhaustionGainFactor = factor("move.jump.climb.back.up.exhaustion.gain.factor", 40,
-            "To manipulate the exhaustion increase by a jump back while climbing (>= 0)");
-    public final FloatProperty climbJumpBackUpExhaustionStopFactor = factor("move.jump.climb.back.up.exhaustion.stop.factor", 60,
-            "To manipulate maximum exhaustion to jump back while climbing (>= 0)");
-    public final BooleanProperty climbJumpBackHeadExhaustion = on("move.jump.climb.back.head.exhaustion",
-            "To switch on/off back climb head jump exhaustion").dependsOn(climbJumpExhaustion::get);
-    public final FloatProperty climbJumpBackHeadExhaustionGainFactor = factor("move.jump.climb.back.head.exhaustion.gain.factor", 20,
-            "To manipulate the exhaustion increase by a head jump back while climbing (>= 0)");
-    public final FloatProperty climbJumpBackHeadExhaustionStopFactor = factor("move.jump.climb.back.head.exhaustion.stop.factor", 80,
-            "To manipulate maximum exhaustion to head jump back while climbing (>= 0)");
-
-    public final BooleanProperty angleJumpExhaustion = on("move.jump.angle.exhaustion", "To switch on/off angle jump exhaustion")
-            .dependsOn(jumpExhaustion::get);
-    public final FloatProperty angleJumpExhaustionGainFactor = factor("move.jump.angle.exhaustion.gain.factor",
-            "To manipulate the exhaustion increase by a jump to the side or back (>= 0)");
-    public final FloatProperty angleJumpExhaustionStopFactor = factor("move.jump.angle.exhaustion.stop.factor",
-            "To manipulate maximum exhaustion to jump to the side or back (>= 0)");
-
-    public final BooleanProperty wallJumpExhaustion = off("move.jump.wall.exhaustion", "To switch on/off wall jump exhaustion")
-            .dependsOn(jumpExhaustion::get);
-    public final FloatProperty wallJumpExhaustionGainFactor = factor("move.jump.wall.exhaustion.gain.factor",
-            "To manipulate the exhaustion increase by a wall jump (>= 0)");
-    public final FloatProperty wallJumpExhaustionStopFactor = factor("move.jump.wall.exhaustion.stop.factor",
-            "To manipulate maximum exhaustion to wall jump (>= 0)");
-    public final BooleanProperty wallUpJumpExhaustion = on("move.jump.wall.up.exhaustion", "To switch on/off wall up jump exhaustion")
-            .dependsOn(wallJumpExhaustion::get);
-    public final FloatProperty wallUpJumpExhaustionGainFactor = factor("move.jump.wall.up.exhaustion.gain.factor", 40,
-            "To manipulate the exhaustion increase by a wall up jump (>= 0)");
-    public final FloatProperty wallUpJumpExhaustionStopFactor = factor("move.jump.wall.up.exhaustion.stop.factor", 60,
-            "To manipulate maximum exhaustion to wall up jump (>= 0)");
-    public final BooleanProperty wallHeadJumpExhaustion = on("move.jump.wall.head.exhaustion", "To switch on/off wall head jump exhaustion")
-            .dependsOn(wallJumpExhaustion::get);
-    public final FloatProperty wallHeadJumpExhaustionGainFactor = factor("move.jump.wall.head.exhaustion.gain.factor", 20,
-            "To manipulate the exhaustion increase by a wall head jump (>= 0)");
-    public final FloatProperty wallHeadJumpExhaustionStopFactor = factor("move.jump.wall.head.exhaustion.stop.factor", 80,
-            "To manipulate maximum exhaustion to wall head jump (>= 0)");
-
-    public final BooleanProperty standJumpExhaustion = off("move.jump.stand.exhaustion", "To switch on/off stand jump exhaustion")
-            .dependsOn(jumpExhaustion::get);
-    public final FloatProperty standJumpExhaustionGainFactor = factor("move.jump.stand.exhaustion.gain.factor", 40,
-            "To manipulate the exhaustion increase by a jump while standing (>= 0)");
-    public final FloatProperty standJumpExhaustionStopFactor = factor("move.jump.stand.exhaustion.stop.factor", 60,
-            "To manipulate maximum exhaustion to jump while standing (>= 0)");
-    public final BooleanProperty sneakJumpExhaustion = off("move.jump.sneak.exhaustion", "To switch on/off sneak jump exhaustion")
-            .dependsOn(jumpExhaustion::get);
-    public final FloatProperty sneakJumpExhaustionGainFactor = factor("move.jump.sneak.exhaustion.gain.factor", 40,
-            "To manipulate the exhaustion increase by a jump while sneaking (>= \"move.jump.stand.exhaustion.gain.factor\")")
-            .min(standJumpExhaustionGainFactor::get);
-    public final FloatProperty sneakJumpExhaustionStopFactor = factor("move.jump.sneak.exhaustion.stop.factor", 60,
-            "To manipulate maximum exhaustion to jump while sneaking (>= 0, <= \"move.jump.stand.exhaustion.stop.factor\")")
-            .max(standJumpExhaustionStopFactor::get);
-    // The original key was "move.jump.walkexhaustion" (missing dot). No old files are migrated, so the typo is fixed.
-    public final BooleanProperty walkJumpExhaustion = off("move.jump.walk.exhaustion", "To switch on/off walk jump exhaustion")
-            .dependsOn(jumpExhaustion::get);
-    public final FloatProperty walkJumpExhaustionGainFactor = factor("move.jump.walk.exhaustion.gain.factor", 45,
-            "To manipulate the exhaustion increase by a jump while walking (>= \"move.jump.sneak.exhaustion.gain.factor\")")
-            .min(sneakJumpExhaustionGainFactor::get);
-    public final FloatProperty walkJumpExhaustionStopFactor = factor("move.jump.walk.exhaustion.stop.factor", 55,
-            "To manipulate maximum exhaustion to jump while walking (>= 0, <= \"move.jump.sneak.exhaustion.stop.factor\")")
-            .max(sneakJumpExhaustionStopFactor::get);
-    public final BooleanProperty runJumpExhaustion = off("move.jump.run.exhaustion", "To switch on/off run jump exhaustion")
-            .dependsOn(jumpExhaustion::get);
-    public final FloatProperty runJumpExhaustionGainFactor = factor("move.jump.run.exhaustion.gain.factor", 60,
-            "To manipulate the exhaustion increase by a jump while running (>= \"move.jump.walk.exhaustion.gain.factor\")")
-            .min(walkJumpExhaustionGainFactor::get);
-    public final FloatProperty runJumpExhaustionStopFactor = factor("move.jump.run.exhaustion.stop.factor", 40,
-            "To manipulate maximum exhaustion to jump while running (>= 0, <= \"move.jump.walk.exhaustion.stop.factor\")")
-            .max(walkJumpExhaustionStopFactor::get);
-    public final BooleanProperty sprintJumpExhaustion = off("move.jump.sprint.exhaustion", "To switch on/off sprint jump exhaustion")
-            .dependsOn(jumpExhaustion::get);
-    public final FloatProperty sprintJumpExhaustionGainFactor = factor("move.jump.sprint.exhaustion.gain.factor", 65,
-            "To manipulate the exhaustion increase by a jump while sprinting (>= \"move.jump.run.exhaustion.gain.factor\")")
-            .min(runJumpExhaustionGainFactor::get);
-    public final FloatProperty sprintJumpExhaustionStopFactor = factor("move.jump.sprint.exhaustion.stop.factor", 35,
-            "To manipulate maximum exhaustion to jump while sprinting (>= 0, <= \"move.jump.run.exhaustion.stop.factor\")")
-            .max(runJumpExhaustionStopFactor::get);
-    public final BooleanProperty jumpChargeExhaustion = off("move.jump.charge.exhaustion",
-            "To switch on/off up additional jump charge exhaustion").dependsOn(jumpExhaustion::get);
-    public final FloatProperty jumpChargeExhaustionGainFactor = factor("move.jump.charge.exhaustion.gain.factor", 30,
-            "To manipulate the additional exhaustion for the higher jump (>= 0, is multiplied with the actual charge factor)");
-    public final FloatProperty jumpChargeExhaustionStopFactor = factor("move.jump.charge.exhaustion.stop.factor", 30,
-            "To manipulate the subtractional maximum exhaustion to jump higher (>= 0, is multiplied with the actual charge factor)");
-    public final BooleanProperty jumpSlideExhaustion = off("move.jump.slide.exhaustion", "To switch on/off slide jump exhaustion")
-            .dependsOn(jumpExhaustion::get);
-    public final FloatProperty jumpSlideExhaustionGainFactor = factor("move.jump.slide.exhaustion.gain.factor", 10,
-            "To manipulate the exhaustion increase by a slide jump (>= 0)");
-    public final FloatProperty jumpSlideExhaustionStopFactor = factor("move.jump.slide.exhaustion.stop.factor", 90,
-            "To manipulate maximum exhaustion to slide jump (>= 0)");
-
-    // Exhaustion and hunger
-
-    public final FloatProperty exhaustionGainFactor = section("Exhaustion",
-            "Below you find the options for the continuous exhaustion gain/loss factors.",
-            factor("move.exhaustion.gain.factor", "Exhaustion gain base factor, set to '0' to disable exhaustion (>= 0)"));
-    public final FloatProperty exhaustionLossFactor = factor("move.exhaustion.loss.factor", 1.2f, "Exhaustion loss base factor (>= 0)");
-    public final FloatProperty sprintExhaustionLossFactor = factor("move.exhaustion.sprint.loss.factor", 0,
-            "Smart sprinting exhaustion loss factor (>= 0)");
-    public final FloatProperty runExhaustionLossFactor = factor("move.exhaustion.run.loss.factor", 0.5f,
-            "Standard sprinting exhaustion loss factor (>= 0, >= \"move.exhaustion.sprint.loss.factor\")")
-            .min(sprintExhaustionLossFactor::get);
-    public final FloatProperty walkExhaustionLossFactor = factor("move.exhaustion.walk.loss.factor", 1,
-            "Walking exhaustion loss factor (>= 0, >= \"move.exhaustion.run.loss.factor\")").min(runExhaustionLossFactor::get);
-    public final FloatProperty sneakExhaustionLossFactor = factor("move.exhaustion.sneak.loss.factor", 1.5f,
-            "Sneaking exhaustion loss factor (>= 0, >= \"move.exhaustion.walk.loss.factor\")").min(walkExhaustionLossFactor::get);
-    public final FloatProperty standExhaustionLossFactor = factor("move.exhaustion.stand.loss.factor", 2,
-            "Standing exhaustion loss factor (>= 1, >= \"move.exhaustion.sneak.loss.factor\")")
-            .min(() -> Math.max(sneakExhaustionLossFactor.get(), 1));
-    public final FloatProperty fallExhaustionLossFactor = factor("move.exhaustion.fall.loss.factor", 2.5f,
-            "Falling exhaustion loss factor (>= \"move.exhaustion.stand.loss.factor\")").min(standExhaustionLossFactor::get);
-    public final FloatProperty ceilingClimbExhaustionLossFactor = factor("move.exhaustion.climb.ceiling.loss.factor",
-            "Ceiling climbing exhaustion loss factor (>= 0)");
-    public final FloatProperty climbExhaustionLossFactor = factor("move.exhaustion.climb.loss.factor",
-            "Climbing exhaustion loss factor (>= 0)");
-    public final FloatProperty crawlExhaustionLossFactor = factor("move.exhaustion.crawl.loss.factor",
-            "Crawling exhaustion loss factor (>= 0)");
-    public final FloatProperty dipExhaustionLossFactor = factor("move.exhaustion.dip.loss.factor",
-            "Water walking exhaustion loss factor (>= 0)");
-    public final FloatProperty swimExhaustionLossFactor = factor("move.exhaustion.swim.loss.factor",
-            "Swimming exhaustion loss factor (>= 0)");
-    public final FloatProperty diveExhaustionLossFactor = factor("move.exhaustion.dive.loss.factor",
-            "Diving exhaustion loss factor (>= 0)");
-    public final FloatProperty normalExhaustionLossFactor = factor("move.exhaustion.normal.loss.factor",
-            "Normal movement exhaustion loss factor (>= 0)");
-    public final BooleanProperty exhaustionLossHunger = on("move.exhaustion.hunger", "Whether exhaustion loss increases hunger");
-    public final FloatProperty exhaustionLossHungerFactor = factor("move.exhaustion.hunger.factor", 0.02f,
-            "How much hunger is generated for exhaustion loss (>= 0)");
-    public final FloatProperty exhaustionLossFoodLevelMinimum = positive("move.exhaustion.food.minimum", 4,
-            "Until which food level exhaustion is continuously reduced");
-
-    public final BooleanProperty hungerGain = section("Hunger", "Below you find all hunger gain options.",
-            off("move.hunger.gain", "To switch on/off hunger generation"));
-    public final FloatProperty hungerGainFactor = factor("move.hunger.gain.factor", 0.8f, "Hunger generation base factor (>= 0)");
-    public final FloatProperty sprintHungerGainFactor = factor("move.hunger.sprint.gain.factor",
-            "Smart sprinting hunger generation factor (>= 0)");
-    public final FloatProperty runHungerGainFactor = factor("move.hunger.run.gain.factor", 10,
-            "Standard sprinting hunger generation factor (>= 0)");
-    public final FloatProperty walkHungerGainFactor = factor("move.hunger.walk.gain.factor",
-            "Standard speed movement hunger generation factor (>= 0)");
-    public final FloatProperty sneakHungerGainFactor = factor("move.hunger.sneak.gain.factor",
-            "Sneaking hunger generation factor (>= 0)");
-    public final FloatProperty standHungerGainFactor = factor("move.hunger.stand.gain.factor", 0,
-            "Standing hunger generation factor (>= 0)");
-    public final FloatProperty climbHungerGainFactor = factor("move.hunger.climb.gain.factor",
-            "Climbing hunger generation factor (>= 0)");
-    public final FloatProperty crawlHungerGainFactor = factor("move.hunger.crawl.gain.factor",
-            "Crawling hunger generation factor (>= 0)");
-    public final FloatProperty ceilingClimbHungerGainFactor = factor("move.hunger.climb.gain.ceiling.factor",
-            "Ceiling climbing hunger generation factor (>= 0)");
-    public final FloatProperty swimHungerGainFactor = factor("move.hunger.swim.gain.factor", 1.5f,
-            "Swimming hunger generation factor (>= 0)");
-    public final FloatProperty diveHungerGainFactor = factor("move.hunger.dive.gain.factor", 1.5f,
-            "Diving hunger generation factor (>= 0)");
-    public final FloatProperty dipHungerGainFactor = factor("move.hunger.dip.gain.factor", 1.5f,
-            "Water walking hunger generation factor (>= 0)");
-    public final FloatProperty normalHungerGainFactor = factor("move.hunger.normal.gain.factor",
-            "Normal movement hunger generation factor (>= 0)");
-    public final FloatProperty alwaysHungerGain = positive("move.hunger.always.gain", 0, "Basic hunger per tick (>= 0)");
 
     // Item usage
 

@@ -42,15 +42,6 @@ class ConfigConstraintTest {
     }
 
     @Test
-    void exhaustionStopIsAtLeastStart() throws IOException {
-        SmartMovingClientConfig config = load("move.exhaustion.sprint.start=70\nmove.exhaustion.sprint.stop=20\n"
-                + "move.climb.exhaustion.start=90\nmove.climb.ceiling.exhaustion.stop=10\n");
-        assertEquals(70f, config.sprintExhaustionStop.get());
-        assertEquals(90f, config.climbExhaustionStop.get());
-        assertEquals(40f, config.ceilingClimbExhaustionStop.get());
-    }
-
-    @Test
     void fallMaximumIsAtLeastDamageStart() throws IOException {
         SmartMovingClientConfig config = load("move.climb.fall.damage.start.distance=3\nmove.climb.fall.maximum.distance=1\n");
         assertEquals(3f, config.climbFallMaximumDistance.get());
@@ -65,28 +56,6 @@ class ConfigConstraintTest {
         assertEquals(0f, config.crawlFactor.get());
         assertEquals(45f, config.climbFreeDiagonalAngle.get());
         assertEquals(0.1f, config.perspectiveFadeFactor.get(), EPSILON);
-    }
-
-    @Test
-    void jumpExhaustionChainIsOrdered() throws IOException {
-        // gain: stand <= sneak <= walk <= run <= sprint; stop: stand >= sneak >= walk >= run >= sprint
-        SmartMovingClientConfig config = load("move.jump.stand.exhaustion.gain.factor=50\n"
-                + "move.jump.stand.exhaustion.stop.factor=30\n");
-        assertEquals(50f, config.sneakJumpExhaustionGainFactor.get());
-        assertEquals(50f, config.walkJumpExhaustionGainFactor.get());
-        assertEquals(60f, config.runJumpExhaustionGainFactor.get());
-        assertEquals(30f, config.sneakJumpExhaustionStopFactor.get());
-        assertEquals(30f, config.walkJumpExhaustionStopFactor.get());
-        assertEquals(30f, config.runJumpExhaustionStopFactor.get());
-        assertEquals(30f, config.sprintJumpExhaustionStopFactor.get());
-    }
-
-    @Test
-    void standLossFactorIsAtLeastOne() throws IOException {
-        SmartMovingClientConfig config = load("move.exhaustion.run.loss.factor=0\nmove.exhaustion.walk.loss.factor=0\n"
-                + "move.exhaustion.sneak.loss.factor=0\nmove.exhaustion.stand.loss.factor=0\n");
-        assertEquals(1f, config.standExhaustionLossFactor.get());
-        assertEquals(2.5f, config.fallExhaustionLossFactor.get());
     }
 
     @Test
@@ -116,14 +85,5 @@ class ConfigConstraintTest {
         assertTrue(load("").climbFreeLadderAuto.get());
         assertFalse(load("move.climb.base=smart\n").climbFreeLadderAuto.get());
         assertFalse(load("move.climb.free=false\n").climbFreeVineAuto.get());
-    }
-
-    @Test
-    void jumpExhaustionSwitchesChain() throws IOException {
-        SmartMovingClientConfig config = load("move.jump.climb.exhaustion=true\nmove.jump.exhaustion=false\n");
-        assertFalse(config.climbJumpExhaustion.get());
-        assertFalse(config.climbJumpUpExhaustion.get());
-        config.jumpExhaustion.set(true);
-        assertTrue(config.climbJumpUpExhaustion.get());
     }
 }

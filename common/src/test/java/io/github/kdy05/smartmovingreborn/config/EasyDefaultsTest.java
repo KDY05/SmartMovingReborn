@@ -12,42 +12,6 @@ class EasyDefaultsTest {
     private final SmartMovingClientConfig config = new SmartMovingClientConfig();
 
     @Test
-    void mediumAndHardOnlySwitchesAreOff() {
-        List<BooleanProperty> switches = List.of(
-                // Hard only in the original
-                config.climbExhaustion, config.ceilingClimbExhaustion, config.runExhaustion,
-                config.climbJumpExhaustion, config.standJumpExhaustion, config.sneakJumpExhaustion,
-                config.walkJumpExhaustion,
-                // Medium and Hard in the original
-                config.sprintExhaustion, config.wallJumpExhaustion, config.runJumpExhaustion,
-                config.sprintJumpExhaustion, config.jumpChargeExhaustion, config.jumpSlideExhaustion,
-                config.hungerGain);
-        for (BooleanProperty property : switches) {
-            assertFalse(property.get(), property.key());
-        }
-    }
-
-    @Test
-    void easyNumbers() {
-        assertEquals(1.2f, config.exhaustionLossFactor.get());
-        assertEquals(0.02f, config.exhaustionLossHungerFactor.get());
-        assertEquals(0.8f, config.hungerGainFactor.get());
-        assertEquals(0f, config.alwaysHungerGain.get());
-    }
-
-    @Test
-    void jumpSpeedSwitchesAreAllOff() {
-        // A jump accumulates exhaustion only if both its type switch and its speed switch are on.
-        // Type switches such as the angle jump stay on, but every speed switch is off in Easy.
-        assertTrue(config.angleJumpExhaustion.get());
-        List<BooleanProperty> speedSwitches = List.of(config.standJumpExhaustion, config.sneakJumpExhaustion,
-                config.walkJumpExhaustion, config.runJumpExhaustion, config.sprintJumpExhaustion);
-        for (BooleanProperty property : speedSwitches) {
-            assertFalse(property.get(), property.key());
-        }
-    }
-
-    @Test
     void specDefaults() {
         assertEquals(SmartMovingConfig.CLIMB_FREE, config.climbBase.get());
         assertEquals(90f, config.climbFreeOrthogonalAngle.get());

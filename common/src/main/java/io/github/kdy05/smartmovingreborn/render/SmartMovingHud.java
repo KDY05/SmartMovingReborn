@@ -10,7 +10,8 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * The game overlay ({@code SmartMovingRender.renderGuiIngame}): the jump charge bar above the health bar
- * ({@code move.gui.jump.charge.bar}), for charged jumps and head jumps. The exhaustion bar joins in step 17.
+ * ({@code move.gui.jump.charge.bar}), for charged jumps and head jumps. The exhaustion bar is left out, since
+ * Easy never fills it.
  */
 public final class SmartMovingHud {
     private static final ResourceLocation ICONS =
