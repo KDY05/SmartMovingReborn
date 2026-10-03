@@ -17,6 +17,7 @@
     "client.AbstractClientPlayerMixin",
     "client.CameraAccessor",
     "client.DebugScreenOverlayMixin",
+    "client.HumanoidArmorLayerMixin",
     "client.HumanoidModelMixin",
     "client.LivingEntityRendererMixin",
     "client.LocalPlayerMixin",

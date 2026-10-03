@@ -10,8 +10,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Armor needs nothing extra: {@code HumanoidArmorLayer} copies these part poses (scale included) into the
- * armor model, and {@code PlayerModel} copies them into the sleeves and trousers after this returns.
+ * {@code HumanoidArmorLayer} copies these part poses (scale included) into the armor model, where
+ * {@link HumanoidArmorLayerMixin} undoes the stretching some pieces did not take, and {@code PlayerModel} copies
+ * them into the sleeves and trousers after this returns.
  */
 @Mixin(HumanoidModel.class)
 public abstract class HumanoidModelMixin {

@@ -6,6 +6,7 @@ import io.github.kdy05.smartmovingreborn.state.MovingState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.EffectRenderingInventoryScreen;
 import net.minecraft.client.model.HumanoidModel;
+import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -13,6 +14,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
@@ -21,6 +23,8 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.Collections;
 import java.util.Map;
@@ -387,6 +391,34 @@ public final class SmartMovingRender {
             }
         }
         POSE.swingArm(arm, model.attackTime, shoulderYaw);
+    }
+
+    /**
+     * {@code HumanoidArmorLayer#renderArmorPiece}, right after the armor model took the player model's part
+     * poses: the original stretched armor less than the body ({@code scaleArmType}, {@code scaleLegType}). No
+     * armor arm stretches; leggings stretch with the leg; boots keep their length and move up the leg instead,
+     * by half a block per whole length lost ({@code offsetY}, along the leg).
+     */
+    public static void afterArmorCopy(HumanoidModel<?> armor, Entity entity, EquipmentSlot slot) {
+        if (stateOf(entity) == null) {
+            return;
+        }
+        armor.rightArm.yScale = 1;
+        armor.leftArm.yScale = 1;
+        if (slot != EquipmentSlot.LEGS) {
+            liftBoot(armor.rightLeg);
+            liftBoot(armor.leftLeg);
+        }
+    }
+
+    private static void liftBoot(ModelPart leg) {
+        float lift = (1 - leg.yScale) * 0.5f * 16;
+        Vector3f shift = new Quaternionf().rotationZYX(leg.zRot, leg.yRot, leg.xRot).transform(0, -lift, 0,
+                new Vector3f());
+        leg.x += shift.x;
+        leg.y += shift.y;
+        leg.z += shift.z;
+        leg.yScale = 1;
     }
 
     /** Once per client tick for every player: the movement statistics of the climbing animation. */
