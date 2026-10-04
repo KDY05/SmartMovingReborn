@@ -2,14 +2,18 @@
 
 English | [한국어](README.ko.md)
 
-A port of Divisor's **Smart Moving** to Minecraft 1.20.1 for Forge and Fabric.
+A port of Divisor's **Smart Moving** to Minecraft 1.20.1 (Forge, Fabric) and 1.21.1 (NeoForge, Fabric).
 It adds crawling, climbing, ceiling climbing, sliding, wall jumping, charged jumps, diving and more, with the original's animations.
 
 ## Requirements
 
-- Minecraft 1.20.1
-- Forge 47.x, or Fabric Loader with Fabric API
+| Minecraft | Loader | Source branch |
+|---|---|---|
+| 1.20.1 | Forge 47.x, or Fabric Loader with Fabric API | [`master`](https://github.com/kdy05/SmartMovingReborn/tree/master) |
+| 1.21.1 | NeoForge 21.1.x, or Fabric Loader with Fabric API | [`1.21.1`](https://github.com/kdy05/SmartMovingReborn/tree/1.21.1) |
+
 - Install the mod on **both the client and the server**. When only one side has it, joining is still allowed, but Smart Moving stays disabled.
+- On 1.21.1, Fabric and NeoForge clients and servers can join each other with Smart Moving working.
 
 ## Controls
 
@@ -62,6 +66,7 @@ Every option is described by a comment in the file. Key names and defaults follo
 - Only the **Easy** preset. There is no exhaustion or hunger, and F9 turns Smart Moving on and off instead of cycling presets.
 - The default sprint key is **R**, since Left Ctrl is Grab.
 - A few original bugs are fixed, mostly in wall jump angles and climbing hold detection.
+- On 1.21.1, a player whose scale attribute is not 1 moves like vanilla.
 - Not ported: in-game speed keys, presets and per-user rights, lava swimming, and compatibility with mods that no longer exist (Ropes+, Carpenter's Blocks and others).
 
 ## Translations
