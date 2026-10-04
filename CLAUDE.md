@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Smart Moving Reborn: a port of Divisor's Smart Moving (crawl, climb, slide, wall jump, …). This branch, `1.21.1`, targets **Minecraft 1.21.1** for **NeoForge 21.1.x and Fabric**; `master` holds the **1.20.1** Forge/Fabric version. Fixes needed on both go to `master` first and are cherry-picked here. The mod ID is `smartmovingreborn`, the package root is `io.github.kdy05.smartmovingreborn`, and the license is GPLv3.
 
-The spec and plan live in the Obsidian vault at `../../../Projects/SmartMoving/`, in `Spec.md`, `Plan.md` and `Record.md`; the 1.21.1 port has `1.21.1 Plan.md` and `1.21.1 Record.md`. `Plan.md` is the source of truth for architecture decisions and step order.
+The project notes live in the Obsidian vault at `../../../Projects/SmartMoving/`. The mod is released and in maintenance: `유지보수 Record.md` holds the current state, the open issues and the working rules, so read that first. The development-phase documents (`Spec.md`, `Plan.md`, `Record.md`, the 1.21.1 port's `1.21.1 Plan.md` and `1.21.1 Record.md`, and per-feature notes) are archived in its `개발 기록/` folder; search them only when you need the reason behind a design decision.
 
 ## Build
 
