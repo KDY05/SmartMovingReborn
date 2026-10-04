@@ -3,11 +3,14 @@ package io.github.kdy05.smartmovingreborn.network.forge;
 import io.github.kdy05.smartmovingreborn.forge.SmartMovingRebornForgeClient;
 import io.github.kdy05.smartmovingreborn.forge.SmartMovingRebornForgeNetwork;
 import io.github.kdy05.smartmovingreborn.network.ConfigSyncMessage;
+import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.SoundMessage;
 import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
+import io.netty.buffer.Unpooled;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.protocol.game.ClientboundCustomPayloadPacket;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.PacketDistributor;
 
 public final class NetworkImpl {
     private NetworkImpl() {
@@ -19,22 +22,33 @@ public final class NetworkImpl {
     }
 
     public static void sendToServer(StateMessage message) {
-        SmartMovingRebornForgeClient.sendToServer(message);
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        message.write(buf);
+        SmartMovingRebornForgeClient.sendToServer(Network.STATE_ID, buf);
     }
 
     public static void sendSoundToServer(SoundMessage message) {
-        SmartMovingRebornForgeClient.sendToServer(message);
+        if (!SmartMovingRebornForgeClient.canSendToServer(SmartMovingRebornForgeNetwork.SOUND)) {
+            return;
+        }
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        message.write(buf);
+        SmartMovingRebornForgeClient.sendToServer(Network.SOUND_ID, buf);
     }
 
     public static boolean canSendTo(ServerPlayer player) {
-        return SmartMovingRebornForgeNetwork.CHANNEL.isRemotePresent(player.connection.connection);
+        return SmartMovingRebornForgeNetwork.RELAY.isRemotePresent(player.connection.connection);
     }
 
     public static void sendTo(ServerPlayer player, StateRelayMessage message) {
-        SmartMovingRebornForgeNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), message);
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        message.write(buf);
+        player.connection.send(new ClientboundCustomPayloadPacket(Network.RELAY_ID, buf));
     }
 
     public static void sendTo(ServerPlayer player, ConfigSyncMessage message) {
-        SmartMovingRebornForgeNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), message);
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        message.write(buf);
+        player.connection.send(new ClientboundCustomPayloadPacket(Network.CONFIG_ID, buf));
     }
 }

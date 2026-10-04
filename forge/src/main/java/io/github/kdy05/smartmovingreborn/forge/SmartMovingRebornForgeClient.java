@@ -3,16 +3,18 @@ package io.github.kdy05.smartmovingreborn.forge;
 import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
-import io.github.kdy05.smartmovingreborn.network.SoundMessage;
-import io.github.kdy05.smartmovingreborn.network.StateMessage;
 import io.github.kdy05.smartmovingreborn.render.SmartMovingHud;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.protocol.game.ServerboundCustomPayloadPacket;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.network.event.EventNetworkChannel;
 
 /** Client-only Forge wiring. Never load this class on a dedicated server. */
 public final class SmartMovingRebornForgeClient {
@@ -31,15 +33,18 @@ public final class SmartMovingRebornForgeClient {
     }
 
     public static boolean isServerPresent() {
+        return canSendToServer(SmartMovingRebornForgeNetwork.STATE);
+    }
+
+    public static boolean canSendToServer(EventNetworkChannel channel) {
         ClientPacketListener connection = Minecraft.getInstance().getConnection();
-        return connection != null && SmartMovingRebornForgeNetwork.CHANNEL.isRemotePresent(connection.getConnection());
+        return connection != null && channel.isRemotePresent(connection.getConnection());
     }
 
-    public static void sendToServer(StateMessage message) {
-        SmartMovingRebornForgeNetwork.CHANNEL.sendToServer(message);
-    }
-
-    public static void sendToServer(SoundMessage message) {
-        SmartMovingRebornForgeNetwork.CHANNEL.sendToServer(message);
+    public static void sendToServer(ResourceLocation id, FriendlyByteBuf buf) {
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        if (connection != null) {
+            connection.send(new ServerboundCustomPayloadPacket(id, buf));
+        }
     }
 }
