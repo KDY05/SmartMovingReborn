@@ -17,6 +17,7 @@
     "issues": "https://github.com/kdy05/SmartMovingReborn/issues"
   },
   "license": "GPL-3.0-or-later",
+  "icon": "smartmovingreborn.png",
   "environment": "*",
   "entrypoints": {
     "main": [

@@ -8,6 +8,8 @@ modId = "smartmovingreborn"
 version = "${version}"
 displayName = "Smart Moving Reborn"
 displayURL = "https://github.com/kdy05/SmartMovingReborn"
+logoFile = "smartmovingreborn.png"
+logoBlur = false
 authors = "kdy05"
 # Installing on only one side is allowed; Smart Moving then stays off.
 displayTest = "IGNORE_ALL_VERSION"
