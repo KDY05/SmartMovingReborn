@@ -1,5 +1,5 @@
 modLoader = "javafml"
-loaderVersion = "[47,)"
+loaderVersion = "[4,)"
 license = "GPL-3.0-or-later"
 issueTrackerURL = "https://github.com/kdy05/SmartMovingReborn/issues"
 
@@ -9,23 +9,24 @@ version = "${version}"
 displayName = "Smart Moving Reborn"
 displayURL = "https://github.com/kdy05/SmartMovingReborn"
 authors = "kdy05"
-# Installing on only one side is allowed; Smart Moving then stays off.
-displayTest = "IGNORE_ALL_VERSION"
 credits = "Divisor (original Smart Moving), JonnyNova (Smart Moving 1.10.2 port)"
 description = '''
 A port of Divisor's Smart Moving to modern Minecraft: crawling, climbing, sliding, wall jumping, diving and more.
 '''
 
+[[mixins]]
+config = "smartmovingreborn.mixins.json"
+
 [[dependencies.smartmovingreborn]]
-modId = "forge"
-mandatory = true
-versionRange = "[47,)"
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1,)"
 ordering = "NONE"
 side = "BOTH"
 
 [[dependencies.smartmovingreborn]]
 modId = "minecraft"
-mandatory = true
-versionRange = "[1.20.1,1.20.2)"
+type = "required"
+versionRange = "[1.21.1,1.21.2)"
 ordering = "NONE"
 side = "BOTH"

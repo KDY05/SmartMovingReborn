@@ -7,7 +7,7 @@ public final class SwimSpeed {
     private SwimSpeed() {
     }
 
-    /** Forge's swim speed attribute ({@code ForgeMod.SWIM_SPEED}), which scales vanilla's water acceleration; 1 on Fabric. */
+    /** NeoForge's swim speed attribute ({@code NeoForgeMod.SWIM_SPEED}), which scales vanilla's water acceleration; 1 on Fabric. */
     @ExpectPlatform
     public static double of(Player player) {
         throw new AssertionError();

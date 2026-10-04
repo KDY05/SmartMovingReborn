@@ -2,6 +2,13 @@ architectury {
     common rootProject.enabled_platforms.split(",")
 }
 
+// Compile against the oldest Mixin the loaders ship (NeoForge's). Newer Mixin declares the `at` of @Redirect,
+// @ModifyArg, @ModifyArgs and @ModifyVariable as an array, which older Mixin cannot read; newer Mixin still reads
+// the single value.
+configurations.compileClasspath.resolutionStrategy.dependencySubstitution {
+    substitute module("net.fabricmc:sponge-mixin") using module("net.fabricmc:sponge-mixin:$rootProject.mixin_version")
+}
+
 dependencies {
     // Supplies the Mixin and MixinExtras APIs only; do not reference Fabric Loader classes from common.
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"

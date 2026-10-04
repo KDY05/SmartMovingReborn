@@ -1,6 +1,6 @@
-package io.github.kdy05.smartmovingreborn.config.forge;
+package io.github.kdy05.smartmovingreborn.config.neoforge;
 
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.fml.loading.FMLPaths;
 
 import java.nio.file.Path;
 
