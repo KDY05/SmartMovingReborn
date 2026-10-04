@@ -497,7 +497,7 @@ final class SelfClimbing {
         }
         // Starting to crawl, the original looked from its crawling box's top a block up: the standing top.
         AABB box = player.getBoundingBox();
-        double reference = crawlStartConflict ? box.minY + player.getDimensions(Pose.STANDING).height : box.maxY;
+        double reference = crawlStartConflict ? box.minY + player.getDimensions(Pose.STANDING).height() : box.maxY;
         int i = Mth.floor(player.getX());
         int j = Mth.floor(reference);
         int k = Mth.floor(player.getZ());

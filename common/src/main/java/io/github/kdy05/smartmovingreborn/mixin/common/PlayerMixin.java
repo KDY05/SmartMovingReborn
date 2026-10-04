@@ -61,20 +61,8 @@ public abstract class PlayerMixin {
         }
     }
 
-    @Inject(method = "getDimensions", at = @At("HEAD"), cancellable = true)
-    private void smartmovingreborn$getDimensions(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
-        EntityDimensions result = MovingController.dimensions(smartmovingreborn$self(), pose);
-        if (result != null) {
-            cir.setReturnValue(result);
-        }
-    }
-
-    @Inject(method = "getStandingEyeHeight", at = @At("HEAD"), cancellable = true)
-    private void smartmovingreborn$getStandingEyeHeight(Pose pose, EntityDimensions dimensions,
-                                                        CallbackInfoReturnable<Float> cir) {
-        Float result = MovingController.standingEyeHeight(smartmovingreborn$self(), pose);
-        if (result != null) {
-            cir.setReturnValue(result);
-        }
+    @Inject(method = "getDefaultDimensions", at = @At("RETURN"), cancellable = true)
+    private void smartmovingreborn$getDefaultDimensions(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
+        cir.setReturnValue(MovingController.dimensions(smartmovingreborn$self(), pose, cir.getReturnValue()));
     }
 }

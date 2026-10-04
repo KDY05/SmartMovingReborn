@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(PlayerRenderer.class)
 public abstract class PlayerRendererMixin {
     private static final String SETUP_ROTATIONS =
-            "setupRotations(Lnet/minecraft/client/player/AbstractClientPlayer;Lcom/mojang/blaze3d/vertex/PoseStack;FFF)V";
+            "setupRotations(Lnet/minecraft/client/player/AbstractClientPlayer;Lcom/mojang/blaze3d/vertex/PoseStack;FFFF)V";
 
     @Inject(method = "render(Lnet/minecraft/client/player/AbstractClientPlayer;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
             at = @At("HEAD"))
@@ -34,7 +34,7 @@ public abstract class PlayerRendererMixin {
 
     @Inject(method = SETUP_ROTATIONS, at = @At("TAIL"))
     private void smartmovingreborn$setupRotations(AbstractClientPlayer player, PoseStack poseStack, float ageInTicks,
-                                                  float bodyYaw, float partialTicks, CallbackInfo ci) {
+                                                  float bodyYaw, float partialTicks, float scale, CallbackInfo ci) {
         SmartMovingRender.setupRotations(player, poseStack);
     }
 

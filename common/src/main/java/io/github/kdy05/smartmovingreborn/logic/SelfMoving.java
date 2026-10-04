@@ -15,7 +15,6 @@ import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -537,10 +536,11 @@ public final class SelfMoving {
         return true;
     }
 
-    /** What vanilla's {@code travel} does after moving, which a cancelled one skips. */
-    void finishTravel(Vec3 start) {
-        Vec3 end = player.position();
-        player.checkMovementStatistics(end.x - start.x, end.y - start.y, end.z - start.z);
+    /**
+     * What vanilla's {@code travel} does after moving, which a cancelled one skips. The movement statistics are
+     * counted by the server from the move packets.
+     */
+    void finishTravel() {
         player.calculateEntityAnimation(false);
     }
 
@@ -847,9 +847,14 @@ public final class SelfMoving {
         };
     }
 
-    /** The sneaking factor, raised by Swift Sneak like vanilla's (which the original did not know). */
+    /**
+     * The sneaking factor, raised by Swift Sneak like vanilla's (which the original did not know): Swift Sneak adds
+     * to the sneaking speed attribute, whose base is vanilla's sneaking factor.
+     */
     private float sneakFactor(SmartMovingClientConfig config) {
-        return Mth.clamp(config.sneakFactor.get() + EnchantmentHelper.getSneakingSpeedBonus(player), 0, 1);
+        double bonus = player.getAttributeValue(Attributes.SNEAKING_SPEED)
+                - player.getAttributeBaseValue(Attributes.SNEAKING_SPEED);
+        return Mth.clamp(config.sneakFactor.get() + (float) bonus, 0, 1);
     }
 
     /** Whether {@code pose} fits at the player's position, like vanilla's {@code canEnterPose}. */

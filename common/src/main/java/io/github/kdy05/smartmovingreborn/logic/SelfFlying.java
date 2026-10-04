@@ -173,7 +173,6 @@ final class SelfFlying {
         if (!smartFlying) {
             return false;
         }
-        Vec3 start = player.position();
         Abilities abilities = player.getAbilities();
         boolean sneak = SmartMovingClient.isSneakInput(player);
         boolean jump = SmartMovingClient.isJumpPressed(player);
@@ -191,7 +190,7 @@ final class SelfFlying {
         // What vanilla's travel does for any flyer.
         player.resetFallDistance();
         player.stopFallFlying();
-        moving.finishTravel(start);
+        moving.finishTravel();
         return true;
     }
 

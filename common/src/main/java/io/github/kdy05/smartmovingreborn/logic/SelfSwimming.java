@@ -17,8 +17,8 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
@@ -169,7 +169,6 @@ final class SelfSwimming {
         boolean wasSwimming = state.swimming;
         boolean wasDiving = state.diving;
         boolean wasJumpingOutOfWater = jumpingOutOfWater;
-        Vec3 start = player.position();
         boolean liquidClimbing = config.climbFree.get() && player.fallDistance <= 3 && moving.wantClimbUp()
                 && player.horizontalCollision && !state.diving;
         // Smart Moving's flying goes on in water; vanilla's swims.
@@ -177,7 +176,7 @@ final class SelfSwimming {
                 : handleSwimming(input, moving.ownSpeedFactor(config), wasSwimming, wasDiving, liquidClimbing,
                 wasJumpingOutOfWater, config);
         if (handled == Handled.MOVED) {
-            moving.finishTravel(start);
+            moving.finishTravel();
             return true;
         }
         if (handled == Handled.STANDARD) {
@@ -200,7 +199,7 @@ final class SelfSwimming {
         }
         if (player.isInWater()) {
             landTravel(input);
-            moving.finishTravel(start);
+            moving.finishTravel();
             return true;
         }
         return false;
@@ -345,9 +344,9 @@ final class SelfSwimming {
         waterMovementTicks = swimming || diving ? waterMovementTicks + 1 : 0;
         jumpingOutOfWater = SwimLogic.jumpOutOfWater(strafe != 0 || forward != 0, player.horizontalCollision,
                 diveUp, state.slow, waterMovementTicks, onGroundBeforeJump, wasJumpingOutOfWater);
-        float acceleration = 0.02f * speedFactor * SwimLogic.enhancementFactor(player.isSprinting(),
-                EnchantmentHelper.getDepthStrider(player), player.onGround(), player.getSpeed(),
-                player.hasEffect(MobEffects.DOLPHINS_GRACE), (float) SwimSpeed.of(player));
+        float efficiency = (float) player.getAttributeValue(Attributes.WATER_MOVEMENT_EFFICIENCY);
+        float acceleration = 0.02f * speedFactor * SwimLogic.enhancementFactor(player.isSprinting(), efficiency,
+                player.onGround(), player.getSpeed(), player.hasEffect(MobEffects.DOLPHINS_GRACE), (float) SwimSpeed.of(player));
 
         boolean moveRelative = true;
         if (diving) {

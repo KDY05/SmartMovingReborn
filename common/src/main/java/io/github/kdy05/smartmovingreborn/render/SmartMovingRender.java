@@ -407,7 +407,7 @@ public final class SmartMovingRender {
         if (entity != posedEntity) {
             return false;
         }
-        poseStack.mulPoseMatrix(posedBreast);
+        poseStack.mulPose(posedBreast);
         return true;
     }
 

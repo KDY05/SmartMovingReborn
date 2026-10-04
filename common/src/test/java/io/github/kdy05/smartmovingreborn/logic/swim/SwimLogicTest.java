@@ -117,8 +117,8 @@ class SwimLogicTest {
     @Test
     void enhancementsScaleLikeVanillasTopSpeed() {
         assertEquals(1, SwimLogic.enhancementFactor(false, 0, true, 0.1f, false, 1), EPSILON);
-        assertEquals(0.1 / 0.454 / 0.1, SwimLogic.enhancementFactor(false, 3, true, 0.1f, false, 1), 1.0E-4);
-        assertEquals(0.06 / 0.327 / 0.1, SwimLogic.enhancementFactor(false, 3, false, 0.1f, false, 1), 1.0E-4);
+        assertEquals(0.1 / 0.454 / 0.1, SwimLogic.enhancementFactor(false, 1, true, 0.1f, false, 1), 1.0E-4);
+        assertEquals(0.06 / 0.327 / 0.1, SwimLogic.enhancementFactor(false, 1, false, 0.1f, false, 1), 1.0E-4);
         assertEquals(5, SwimLogic.enhancementFactor(false, 0, true, 0.1f, true, 1), 1.0E-4);
         assertEquals(2.5, SwimLogic.enhancementFactor(true, 0, true, 0.13f, true, 1), 1.0E-4);
         assertEquals(2, SwimLogic.enhancementFactor(false, 0, true, 0.1f, false, 2), EPSILON);

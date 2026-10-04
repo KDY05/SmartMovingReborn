@@ -232,29 +232,28 @@ public final class SwimLogic {
     }
 
     /**
-     * How much faster vanilla moves in water with Depth Strider, Dolphin's Grace and Forge's swim speed attribute
+     * How much faster vanilla moves in water with Depth Strider, Dolphin's Grace and NeoForge's swim speed attribute
      * than without them: the ratio of vanilla's top speeds, its acceleration over one minus its damping
      * ({@code LivingEntity.travel}). The original knew none of these; Smart Moving's water acceleration is
      * multiplied by it (user decision, 2026-10-03).
      *
      * @param sprinting     whether vanilla sprints (its damping is then 0.9 instead of 0.8)
-     * @param depthStrider  the Depth Strider level
-     * @param movementSpeed the movement speed attribute, which Depth Strider accelerates towards
-     * @param swimSpeed     Forge's swim speed attribute, 1 on Fabric
+     * @param efficiency    the water movement efficiency attribute, which Depth Strider raises by 1/3 a level
+     * @param movementSpeed the movement speed attribute, which the efficiency accelerates towards
+     * @param swimSpeed     NeoForge's swim speed attribute, 1 on Fabric
      */
-    public static float enhancementFactor(boolean sprinting, float depthStrider, boolean onGround,
+    public static float enhancementFactor(boolean sprinting, float efficiency, boolean onGround,
                                           float movementSpeed, boolean dolphinsGrace, float swimSpeed) {
         float baseDamping = sprinting ? 0.9f : 0.8f;
         float baseAcceleration = 0.02f;
         float damping = baseDamping;
         float acceleration = baseAcceleration;
-        float strider = Math.min(depthStrider, 3);
         if (!onGround) {
-            strider *= 0.5f;
+            efficiency *= 0.5f;
         }
-        if (strider > 0) {
-            damping += (0.54600006f - damping) * strider / 3;
-            acceleration += (movementSpeed - acceleration) * strider / 3;
+        if (efficiency > 0) {
+            damping += (0.54600006f - damping) * efficiency;
+            acceleration += (movementSpeed - acceleration) * efficiency;
         }
         if (dolphinsGrace) {
             damping = 0.96f;

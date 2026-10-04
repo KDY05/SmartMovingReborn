@@ -11,10 +11,10 @@ import net.minecraft.server.level.ServerPlayer;
  */
 public final class Network {
     /** Fabric channel ids. Forge multiplexes the messages over one {@code SimpleChannel}. */
-    public static final ResourceLocation STATE_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "state");
-    public static final ResourceLocation RELAY_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "relay");
-    public static final ResourceLocation SOUND_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "sound");
-    public static final ResourceLocation CONFIG_ID = new ResourceLocation(SmartMovingReborn.MOD_ID, "config");
+    public static final ResourceLocation STATE_ID = ResourceLocation.fromNamespaceAndPath(SmartMovingReborn.MOD_ID, "state");
+    public static final ResourceLocation RELAY_ID = ResourceLocation.fromNamespaceAndPath(SmartMovingReborn.MOD_ID, "relay");
+    public static final ResourceLocation SOUND_ID = ResourceLocation.fromNamespaceAndPath(SmartMovingReborn.MOD_ID, "sound");
+    public static final ResourceLocation CONFIG_ID = ResourceLocation.fromNamespaceAndPath(SmartMovingReborn.MOD_ID, "config");
 
     private Network() {
     }

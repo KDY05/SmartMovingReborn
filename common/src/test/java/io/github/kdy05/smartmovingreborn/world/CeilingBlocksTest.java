@@ -11,9 +11,9 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CeilingBlocksTest {
-    private static final ResourceLocation IRON_BARS = new ResourceLocation("minecraft", "iron_bars");
-    private static final ResourceLocation OAK_TRAPDOOR = new ResourceLocation("minecraft", "oak_trapdoor");
-    private static final ResourceLocation TRAPDOORS = new ResourceLocation("minecraft", "trapdoors");
+    private static final ResourceLocation IRON_BARS = ResourceLocation.withDefaultNamespace("iron_bars");
+    private static final ResourceLocation OAK_TRAPDOOR = ResourceLocation.withDefaultNamespace("oak_trapdoor");
+    private static final ResourceLocation TRAPDOORS = ResourceLocation.withDefaultNamespace("trapdoors");
 
     /** Whether a block with these tags and properties matches {@code entry}. */
     private static boolean matches(String entry, ResourceLocation block, Set<ResourceLocation> tags,

@@ -23,6 +23,7 @@ subprojects {
 
     repositories {
         maven { url = "https://maven.parchmentmc.org" }
+        maven { url = "https://maven.neoforged.net/releases/" }
     }
 
     dependencies {
@@ -36,12 +37,12 @@ subprojects {
     java {
         withSourcesJar()
         toolchain {
-            languageVersion = JavaLanguageVersion.of(17)
+            languageVersion = JavaLanguageVersion.of(21)
         }
     }
 
     tasks.withType(JavaCompile).configureEach {
         it.options.encoding = "UTF-8"
-        it.options.release = 17
+        it.options.release = 21
     }
 }

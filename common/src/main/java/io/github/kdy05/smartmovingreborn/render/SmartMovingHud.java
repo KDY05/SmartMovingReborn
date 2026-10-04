@@ -15,7 +15,7 @@ import net.minecraft.resources.ResourceLocation;
  */
 public final class SmartMovingHud {
     private static final ResourceLocation ICONS =
-            new ResourceLocation(SmartMovingReborn.MOD_ID, "textures/gui/icons.png");
+            ResourceLocation.fromNamespaceAndPath(SmartMovingReborn.MOD_ID, "textures/gui/icons.png");
     private static final int ICON_SIZE = 9;
 
     private SmartMovingHud() {

@@ -346,11 +346,12 @@ public final class MovingController {
     }
 
     /**
-     * Overrides {@code Player#getStandingEyeHeight} when non-null. Lying for a Smart Moving move, the eyes sit
-     * {@link #LYING_EYE_HEIGHT} above the box's bottom instead of vanilla's 0.4 for swimming.
+     * Replaces the result of {@code Player#getDefaultDimensions}. Lying for a Smart Moving move, the eyes sit
+     * {@link #LYING_EYE_HEIGHT} above the box's bottom instead of vanilla's 0.4 for swimming; the size stays
+     * vanilla's.
      */
-    public static Float standingEyeHeight(Player player, Pose pose) {
-        return pose == Pose.SWIMMING && smallPose(player) ? LYING_EYE_HEIGHT : null;
+    public static EntityDimensions dimensions(Player player, Pose pose, EntityDimensions dimensions) {
+        return pose == Pose.SWIMMING && smallPose(player) ? dimensions.withEyeHeight(LYING_EYE_HEIGHT) : dimensions;
     }
 
     /**
@@ -391,11 +392,6 @@ public final class MovingController {
         }
         MovingState state = stateOf(player);
         return state != null && (state.swimming || state.diving) ? player.getY() + SWIM_FLUID_EYE_HEIGHT : eyeY;
-    }
-
-    /** Overrides {@code Player#getDimensions} when non-null. */
-    public static EntityDimensions dimensions(Player player, Pose pose) {
-        return null;
     }
 
     // Server
