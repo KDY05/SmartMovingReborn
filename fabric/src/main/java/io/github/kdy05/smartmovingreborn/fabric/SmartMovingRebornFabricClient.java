@@ -4,7 +4,6 @@ import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
 import io.github.kdy05.smartmovingreborn.network.ConfigSyncMessage;
-import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.StateRelayMessage;
 import io.github.kdy05.smartmovingreborn.render.SmartMovingHud;
 import net.fabricmc.api.ClientModInitializer;
@@ -18,15 +17,12 @@ public final class SmartMovingRebornFabricClient implements ClientModInitializer
     public void onInitializeClient() {
         SmartMovingReborn.initClient();
         KeyBindings.ALL.forEach(KeyBindingHelper::registerKeyBinding);
-        ClientPlayNetworking.registerGlobalReceiver(Network.RELAY_ID, (client, handler, buf, responseSender) -> {
-            StateRelayMessage message = StateRelayMessage.read(buf);
-            client.execute(() -> SmartMovingClient.onStateRelay(message));
-        });
-        ClientPlayNetworking.registerGlobalReceiver(Network.CONFIG_ID, (client, handler, buf, responseSender) -> {
-            ConfigSyncMessage message = ConfigSyncMessage.read(buf);
-            client.execute(() -> SmartMovingClient.onConfigSync(message));
-        });
+        // Receivers run on the client thread.
+        ClientPlayNetworking.registerGlobalReceiver(StateRelayMessage.TYPE,
+                (message, context) -> SmartMovingClient.onStateRelay(message));
+        ClientPlayNetworking.registerGlobalReceiver(ConfigSyncMessage.TYPE,
+                (message, context) -> SmartMovingClient.onConfigSync(message));
         ClientTickEvents.END_CLIENT_TICK.register(SmartMovingClient::tick);
-        HudRenderCallback.EVENT.register((graphics, tickDelta) -> SmartMovingHud.render(graphics));
+        HudRenderCallback.EVENT.register((graphics, deltaTracker) -> SmartMovingHud.render(graphics));
     }
 }

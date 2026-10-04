@@ -10,13 +10,12 @@ import net.minecraft.server.level.ServerPlayer;
  * so modded and vanilla clients and servers can connect to each other.
  */
 public final class Network {
-    /** Fabric channel ids. Forge multiplexes the messages over one {@code SimpleChannel}. */
-    public static final ResourceLocation STATE_ID = ResourceLocation.fromNamespaceAndPath(SmartMovingReborn.MOD_ID, "state");
-    public static final ResourceLocation RELAY_ID = ResourceLocation.fromNamespaceAndPath(SmartMovingReborn.MOD_ID, "relay");
-    public static final ResourceLocation SOUND_ID = ResourceLocation.fromNamespaceAndPath(SmartMovingReborn.MOD_ID, "sound");
-    public static final ResourceLocation CONFIG_ID = ResourceLocation.fromNamespaceAndPath(SmartMovingReborn.MOD_ID, "config");
-
     private Network() {
+    }
+
+    /** A payload's channel id, the same on both loaders so that Fabric and NeoForge peers understand each other. */
+    static ResourceLocation id(String path) {
+        return ResourceLocation.fromNamespaceAndPath(SmartMovingReborn.MOD_ID, path);
     }
 
     /** Client only: whether the connected server accepts Smart Moving packets. */
