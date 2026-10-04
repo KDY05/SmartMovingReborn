@@ -36,19 +36,19 @@ public final class Network {
         throw new AssertionError();
     }
 
-    /** Whether {@code player}'s client accepts Smart Moving packets. */
+    /** Whether {@code player}'s client registered the Smart Moving channels. See {@link ServerNetworkHandler#hasMod}. */
     @ExpectPlatform
     public static boolean canSendTo(ServerPlayer player) {
         throw new AssertionError();
     }
 
-    /** Call only when {@link #canSendTo} is true. */
+    /** Call only when {@link ServerNetworkHandler#hasMod} is true. */
     @ExpectPlatform
     public static void sendTo(ServerPlayer player, StateRelayMessage message) {
         throw new AssertionError();
     }
 
-    /** Call only when {@link #canSendTo} is true. */
+    /** Call only when {@link ServerNetworkHandler#hasMod} is true. */
     @ExpectPlatform
     public static void sendTo(ServerPlayer player, ConfigSyncMessage message) {
         throw new AssertionError();

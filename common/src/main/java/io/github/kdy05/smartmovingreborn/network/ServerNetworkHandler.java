@@ -23,12 +23,21 @@ public final class ServerNetworkHandler {
     /** The last state each player's client sent. Server thread only. */
     private static final Map<ServerPlayer, MovingState> STATES = new WeakHashMap<>();
     /**
-     * The connections whose client got the server's configuration. Keyed by connection, not player, because
-     * respawning makes a new {@code ServerPlayer} on the same connection. Server thread only.
+     * The connections whose client sent a state, and so got the server's configuration. Keyed by connection, not
+     * player, because respawning makes a new {@code ServerPlayer} on the same connection. Server thread only.
      */
     private static final Set<ServerGamePacketListenerImpl> CONFIGURED = Collections.newSetFromMap(new WeakHashMap<>());
 
     private ServerNetworkHandler() {
+    }
+
+    /**
+     * Whether {@code player}'s client has the mod: it registered the channels, or it sent a state. A NeoForge
+     * client registers none on a Fabric server, yet takes the payloads (it only sends once it sees the server's
+     * channel).
+     */
+    public static boolean hasMod(ServerPlayer player) {
+        return CONFIGURED.contains(player.connection) || Network.canSendTo(player);
     }
 
     /** The last state {@code player}'s client sent, or null. */
@@ -42,7 +51,7 @@ public final class ServerNetworkHandler {
      */
     public static void onState(ServerPlayer sender, StateMessage message) {
         // The original answered a client's first state with the server's configuration (initialize).
-        if (CONFIGURED.add(sender.connection) && Network.canSendTo(sender)) {
+        if (CONFIGURED.add(sender.connection)) {
             Network.sendTo(sender, ConfigSyncMessage.of(SmartMovingReborn.SERVER_CONFIG));
         }
         MovingState state = STATES.computeIfAbsent(sender, player -> new MovingState());
@@ -61,7 +70,7 @@ public final class ServerNetworkHandler {
         }
         for (ServerPlayerConnection connection : ((TrackedEntityAccessor) tracked).smartmovingreborn$getSeenBy()) {
             ServerPlayer target = connection.getPlayer();
-            if (Network.canSendTo(target)) {
+            if (hasMod(target)) {
                 Network.sendTo(target, relay);
             }
         }

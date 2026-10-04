@@ -3,7 +3,6 @@ package io.github.kdy05.smartmovingreborn.logic;
 import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.mixin.server.ServerGamePacketListenerImplAccessor;
-import io.github.kdy05.smartmovingreborn.network.Network;
 import io.github.kdy05.smartmovingreborn.network.ServerNetworkHandler;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import net.minecraft.server.level.ServerPlayer;
@@ -73,7 +72,7 @@ public final class MovingController {
 
     /** Whether the server should apply Smart Moving to {@code player}, i.e. its client has the mod. */
     private static boolean isActiveOnServer(ServerPlayer player) {
-        return Network.canSendTo(player);
+        return ServerNetworkHandler.hasMod(player);
     }
 
     // Client: the own player
