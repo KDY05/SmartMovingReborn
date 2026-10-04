@@ -2,14 +2,18 @@
 
 [English](README.md) | 한국어
 
-Divisor의 **Smart Moving**을 Minecraft 1.20.1(Forge, Fabric)로 옮긴 모드입니다.
+Divisor의 **Smart Moving**을 Minecraft 1.20.1(Forge, Fabric)과 1.21.1(NeoForge, Fabric)로 옮긴 모드입니다.
 기어가기, 등반, 천장 등반, 슬라이딩, 벽 점프, 차지 점프, 다이빙 등을 원작 애니메이션과 함께 추가합니다.
 
 ## 요구 사항
 
-- Minecraft 1.20.1
-- Forge 47.x, 또는 Fabric Loader와 Fabric API
+| Minecraft | 로더 | 소스 브랜치 |
+|---|---|---|
+| 1.20.1 | Forge 47.x, 또는 Fabric Loader와 Fabric API | [`master`](https://github.com/kdy05/SmartMovingReborn/tree/master) |
+| 1.21.1 | NeoForge 21.1.x, 또는 Fabric Loader와 Fabric API | [`1.21.1`](https://github.com/kdy05/SmartMovingReborn/tree/1.21.1) |
+
 - **클라이언트와 서버 모두에** 설치해야 합니다. 한쪽에만 있어도 접속은 되지만 Smart Moving은 비활성화됩니다.
+- 1.21.1에서는 Fabric과 NeoForge 클라이언트·서버가 서로 접속해도 Smart Moving이 동작합니다.
 
 ## 조작법
 
@@ -62,6 +66,7 @@ Divisor의 **Smart Moving**을 Minecraft 1.20.1(Forge, Fabric)로 옮긴 모드�
 - **Easy** 프리셋만 옮겼습니다. 피로도와 허기가 없고, F9는 프리셋을 바꾸는 대신 Smart Moving을 켜고 끕니다.
 - 왼쪽 Ctrl이 잡기 키라서 달리기 기본 키가 **R**입니다.
 - 원작 버그 몇 가지를 고쳤습니다. 주로 벽 점프 각도와 등반 잡을 곳 판정입니다.
+- 1.21.1에서 크기(scale) 속성이 1이 아닌 플레이어는 바닐라처럼 움직입니다.
 - 옮기지 않은 것: 게임 안 속도 조절 키, 프리셋과 사용자별 권한, 용암 수영, 더 이상 없는 모드와의 호환(Ropes+, Carpenter's Blocks 등).
 
 ## 번역
