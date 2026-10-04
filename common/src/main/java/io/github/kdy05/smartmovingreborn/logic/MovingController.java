@@ -64,7 +64,8 @@ public final class MovingController {
 
     /**
      * Whether {@code entity} is the own player and Smart Moving moves it: active, and not gliding with an elytra,
-     * spinning with a riptide trident or spectating, which vanilla moves alone ({@link SelfMoving#vanillaOverride}).
+     * spinning with a riptide trident, spectating or scaled, which vanilla moves alone
+     * ({@link SelfMoving#vanillaOverride}).
      */
     private static boolean isMovingSelf(Entity entity) {
         return isActiveSelf(entity) && !self.vanillaOverride();

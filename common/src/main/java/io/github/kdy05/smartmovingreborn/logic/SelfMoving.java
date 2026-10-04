@@ -325,11 +325,13 @@ public final class SelfMoving {
     }
 
     /**
-     * Elytra gliding, a riptide spin or spectating, which vanilla moves and poses alone: Smart Moving's moves end
-     * and wait for it to finish. A spectator passes through blocks, where it would otherwise be made to crawl.
+     * Elytra gliding, a riptide spin, spectating or a scale other than 1, which vanilla moves and poses alone:
+     * Smart Moving's moves end and wait for it to finish. A spectator passes through blocks, where it would
+     * otherwise be made to crawl. Smart Moving's sizes and distances are for a player of scale 1 (the scale
+     * attribute is newer than the original; user decision, 2026-10-04).
      */
     boolean vanillaOverride() {
-        return player.isFallFlying() || player.isAutoSpinAttack() || player.isSpectator();
+        return player.isFallFlying() || player.isAutoSpinAttack() || player.isSpectator() || player.getScale() != 1;
     }
 
     /**
