@@ -9,7 +9,7 @@ Divisor의 **Smart Moving**을 Minecraft 1.20.1(Forge, Fabric)과 1.21.1(NeoForg
 
 | Minecraft | 로더 | 소스 브랜치 |
 |---|---|---|
-| 1.20.1 | Forge 47.x, 또는 Fabric Loader와 Fabric API | [`master`](https://github.com/kdy05/SmartMovingReborn/tree/master) |
+| 1.20.1 | Forge 47.x, 또는 Fabric Loader와 Fabric API | [`1.20.1`](https://github.com/kdy05/SmartMovingReborn/tree/1.20.1) |
 | 1.21.1 | NeoForge 21.1.x, 또는 Fabric Loader와 Fabric API | [`1.21.1`](https://github.com/kdy05/SmartMovingReborn/tree/1.21.1) |
 
 - **클라이언트와 서버 모두에** 설치해야 합니다. 한쪽에만 있어도 접속은 되지만 Smart Moving은 비활성화됩니다.
