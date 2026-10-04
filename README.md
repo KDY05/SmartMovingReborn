@@ -9,7 +9,7 @@ It adds crawling, climbing, ceiling climbing, sliding, wall jumping, charged jum
 
 | Minecraft | Loader | Source branch |
 |---|---|---|
-| 1.20.1 | Forge 47.x, or Fabric Loader with Fabric API | [`master`](https://github.com/kdy05/SmartMovingReborn/tree/master) |
+| 1.20.1 | Forge 47.x, or Fabric Loader with Fabric API | [`1.20.1`](https://github.com/kdy05/SmartMovingReborn/tree/1.20.1) |
 | 1.21.1 | NeoForge 21.1.x, or Fabric Loader with Fabric API | [`1.21.1`](https://github.com/kdy05/SmartMovingReborn/tree/1.21.1) |
 
 - Install the mod on **both the client and the server**. When only one side has it, joining is still allowed, but Smart Moving stays disabled.
