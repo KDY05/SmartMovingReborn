@@ -5,12 +5,16 @@ import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.mixin.server.ServerGamePacketListenerImplAccessor;
 import io.github.kdy05.smartmovingreborn.network.ServerNetworkHandler;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -28,9 +32,24 @@ public final class MovingController {
      */
     private static final float LYING_EYE_HEIGHT = 0.55f;
     /**
+     * The eye height while swimming or diving: the original's. A swimmer floats with the water's surface 0.5055
+     * above the box's bottom, so at {@link #LYING_EYE_HEIGHT} the camera's near plane crossed the surface looking
+     * down and showed the water from above and below at once; 0.62 clears it up to the widest field of view. Above
+     * the 0.6 high box, it would be inside the ceiling of a channel one block high (0.6165), so under a ceiling
+     * {@link #swimEyeHeight} lowers it.
+     */
+    private static final float SWIM_EYE_HEIGHT = 0.62f;
+    /** Vanilla's eye height for {@code Pose.SWIMMING}, which a swimmer under a low ceiling takes. */
+    private static final float VANILLA_SWIM_EYE_HEIGHT = 0.4f;
+    /**
+     * How far above and below the eyes vanilla looks for a block to cover the screen with
+     * ({@code ScreenEffectRenderer#getOverlayBlock}).
+     */
+    private static final double OVERLAY_REACH = 0.05;
+    /**
      * Where a swimmer's or diver's eyes are for the water, above the box's bottom: the original's
      * ({@code posY + getEyeHeight()}, 1.74 above its feet and its swimming box a block up). The view stays at
-     * {@link #LYING_EYE_HEIGHT}, which at the surface a swimmer floats at would count as under water, since vanilla
+     * {@link #SWIM_EYE_HEIGHT}, which at the surface a swimmer floats at would count as under water, since vanilla
      * looks for water 0.11 below the eyes.
      */
     private static final double SWIM_FLUID_EYE_HEIGHT = 0.74;
@@ -347,23 +366,59 @@ public final class MovingController {
 
     /**
      * Replaces the result of {@code Player#getDefaultDimensions}. Lying for a Smart Moving move, the eyes sit
-     * {@link #LYING_EYE_HEIGHT} above the box's bottom instead of vanilla's 0.4 for swimming; the size stays
+     * {@link #standingEyeHeight} above the box's bottom instead of vanilla's 0.4 for swimming; the size stays
      * vanilla's.
      */
     public static EntityDimensions dimensions(Player player, Pose pose, EntityDimensions dimensions) {
-        return pose == Pose.SWIMMING && smallPose(player) ? dimensions.withEyeHeight(LYING_EYE_HEIGHT) : dimensions;
+        Float eyeHeight = standingEyeHeight(player, pose);
+        return eyeHeight != null ? dimensions.withEyeHeight(eyeHeight) : dimensions;
+    }
+
+    /**
+     * The eye height of a Smart Moving move in {@code pose}, or null for vanilla's: {@link #LYING_EYE_HEIGHT}
+     * lying, {@link #SWIM_EYE_HEIGHT} swimming or diving.
+     */
+    private static Float standingEyeHeight(Player player, Pose pose) {
+        if (pose != Pose.SWIMMING || !smallPose(player)) {
+            return null;
+        }
+        MovingState state = stateOf(player);
+        return state != null && (state.swimming || state.diving) ? swimEyeHeight(player) : LYING_EYE_HEIGHT;
+    }
+
+    /**
+     * {@link #SWIM_EYE_HEIGHT}, or vanilla's swimming eye height ({@link #VANILLA_SWIM_EYE_HEIGHT}) where vanilla
+     * would cover the screen with a ceiling block found {@link #OVERLAY_REACH} above those eyes, as in a channel one
+     * block high. The same corners as {@code ScreenEffectRenderer#getOverlayBlock}.
+     * Without such a block the eyes are not in one either (a block lower down would hold the box's top), so they
+     * do not count as suffocating.
+     */
+    private static float swimEyeHeight(Player player) {
+        int y = Mth.floor(player.getY() + SWIM_EYE_HEIGHT + OVERLAY_REACH);
+        double half = player.getBbWidth() * 0.4;
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int i = 0; i < 4; i++) {
+            pos.set(player.getX() + ((i & 1) == 0 ? -half : half), y, player.getZ() + ((i & 2) == 0 ? -half : half));
+            BlockState block = player.level().getBlockState(pos);
+            if (block.getRenderShape() != RenderShape.INVISIBLE && block.isViewBlocking(player.level(), pos)) {
+                return VANILLA_SWIM_EYE_HEIGHT;
+            }
+        }
+        return SWIM_EYE_HEIGHT;
     }
 
     /**
      * {@code Player#updatePlayerPose} HEAD: vanilla caches the eye height and only recomputes it when the size
-     * changes, which a switch between vanilla swimming and a Smart Moving move in the same pose does not.
+     * changes, which a switch between vanilla swimming and a Smart Moving move, or between two Smart Moving moves,
+     * in the same pose does not.
      *
      * @param wasLying whether the cached eye height is a lying move's
      * @return whether the eye height now is a lying move's
      */
     public static boolean updateEyeHeight(Player player, boolean wasLying) {
         boolean lying = smallPose(player);
-        if (lying != wasLying) {
+        Float eyeHeight = standingEyeHeight(player, player.getPose());
+        if (lying != wasLying || eyeHeight != null && eyeHeight != player.getEyeHeight()) {
             player.refreshDimensions();
         }
         return lying;
