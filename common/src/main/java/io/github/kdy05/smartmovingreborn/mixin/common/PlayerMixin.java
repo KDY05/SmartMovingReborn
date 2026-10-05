@@ -52,6 +52,16 @@ public abstract class PlayerMixin {
         }
     }
 
+    /**
+     * Also before {@code baseTick} checks for suffocating: on the server the player moved when its packet arrived,
+     * and a swimmer's eye height depends on the ceiling above ({@code MovingController.standingEyeHeight}).
+     */
+    @Inject(method = "tick", at = @At("HEAD"))
+    private void smartmovingreborn$tick(CallbackInfo ci) {
+        smartmovingreborn$lyingEyes = MovingController.updateEyeHeight(smartmovingreborn$self(),
+                smartmovingreborn$lyingEyes);
+    }
+
     @Inject(method = "updatePlayerPose", at = @At("HEAD"), cancellable = true)
     private void smartmovingreborn$updatePlayerPose(CallbackInfo ci) {
         smartmovingreborn$lyingEyes = MovingController.updateEyeHeight(smartmovingreborn$self(),
