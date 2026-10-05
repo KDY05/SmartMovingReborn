@@ -20,6 +20,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
@@ -551,9 +552,18 @@ public final class SmartMovingRender {
      * {@code PlayerRenderer#setupRotations} TAIL. The original drew a crawling, sliding or head jumping player
      * one block lower than its position: its model lies down around the torso, not the feet. Vanilla's lying
      * rotation stays off, since {@link MovingController#suppressSwimAmount} keeps its swim amount at 0.
+     * <p>
+     * The inventory screen centers the model on half its box height, so the standing model it draws in the small
+     * box comes out higher than when standing; it is moved down by the difference.
      */
-    public static void setupRotations(AbstractClientPlayer player, PoseStack poseStack) {
-        if (!renderingInventory && isLying(player)) {
+    public static void setupRotations(AbstractClientPlayer player, PoseStack poseStack, float scale) {
+        if (!isLying(player)) {
+            return;
+        }
+        if (renderingInventory) {
+            float standing = player.getDimensions(Pose.STANDING).height();
+            poseStack.translate(0, -(standing - player.getBbHeight()) / 2 / scale, 0);
+        } else {
             poseStack.translate(0, -1, 0);
         }
     }

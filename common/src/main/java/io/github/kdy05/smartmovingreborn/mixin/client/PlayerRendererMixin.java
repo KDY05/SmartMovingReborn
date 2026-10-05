@@ -35,7 +35,7 @@ public abstract class PlayerRendererMixin {
     @Inject(method = SETUP_ROTATIONS, at = @At("TAIL"))
     private void smartmovingreborn$setupRotations(AbstractClientPlayer player, PoseStack poseStack, float ageInTicks,
                                                   float bodyYaw, float partialTicks, float scale, CallbackInfo ci) {
-        SmartMovingRender.setupRotations(player, poseStack);
+        SmartMovingRender.setupRotations(player, poseStack, scale);
     }
 
     @Inject(method = "renderHand", at = @At("HEAD"))
