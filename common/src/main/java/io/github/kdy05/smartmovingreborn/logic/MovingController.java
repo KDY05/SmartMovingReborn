@@ -47,12 +47,12 @@ public final class MovingController {
      */
     private static final double OVERLAY_REACH = 0.05;
     /**
-     * Where a swimmer's or diver's eyes are for the water, above the box's bottom: the original's
-     * ({@code posY + getEyeHeight()}, 1.74 above its feet and its swimming box a block up). The view stays at
-     * {@link #SWIM_EYE_HEIGHT}, which at the surface a swimmer floats at would count as under water, since vanilla
-     * looks for water 0.11 below the eyes.
+     * Where a swimmer or diver is looked for water at, above the box's bottom: the original's
+     * ({@code posY + getEyeHeight()}, 1.74 above its feet and its swimming box a block up), less the 0.11 the
+     * original and 1.20.1 looked below the eyes, which 1.21.1's {@code Entity#updateFluidOnEyes} no longer does.
+     * Floating still, a swimmer's eyes are then under water; holding jump, they are not.
      */
-    private static final double SWIM_FLUID_EYE_HEIGHT = 0.74;
+    private static final double SWIM_FLUID_EYE_HEIGHT = 0.74 - 0.11111111F;
 
     /**
      * The client's own player, set when it is constructed. Always null on a dedicated server, so the hooks in
