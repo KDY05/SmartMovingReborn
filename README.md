@@ -75,8 +75,8 @@ English and Korean. Dutch, Brazilian Portuguese and Russian also use the origina
 
 ## Credits
 
-- **Divisor**: original Smart Moving (1.2.5 – 1.7.10)
-- **JonnyNova**: Smart Moving port to 1.10.2
+- **Divisor**: [original Smart Moving (1.2.5 – 1.7.10)](https://www.curseforge.com/minecraft/mc-mods/smart-moving)
+- **JonnyNova**: [Smart Moving port to 1.10.2](https://github.com/JonnyNova/SmartMoving)
 
 ## License
 
