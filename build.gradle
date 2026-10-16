@@ -2,6 +2,7 @@ plugins {
     id "dev.architectury.loom" version "1.17-SNAPSHOT" apply false
     id "architectury-plugin" version "3.5-SNAPSHOT"
     id "com.gradleup.shadow" version "9.6.1" apply false
+    id "me.modmuss50.mod-publish-plugin" version "2.2.1"
 }
 
 architectury {
@@ -43,5 +44,38 @@ subprojects {
     tasks.withType(JavaCompile).configureEach {
         it.options.encoding = "UTF-8"
         it.options.release = 17
+    }
+}
+
+// ./gradlew publishMods uploads the Forge and Fabric jars to CurseForge.
+// Without CURSEFORGE_TOKEN it is a dry run: nothing is uploaded, the result goes to build/publishMods.
+// The changelog is the local (git-excluded) build/release/release-notes-<version>.md.
+publishMods {
+    changelog = providers.fileContents(layout.projectDirectory.file("build/release/release-notes-${project.version}.md")).asText
+    type = STABLE
+    dryRun = providers.environmentVariable("CURSEFORGE_TOKEN").getOrNull() == null
+
+    def cfOptions = curseforgeOptions {
+        accessToken = providers.environmentVariable("CURSEFORGE_TOKEN")
+        projectId = "1726279"
+        minecraftVersions.add(rootProject.minecraft_version)
+        javaVersions.add(JavaVersion.VERSION_17)
+        client = true
+        server = true
+    }
+
+    curseforge("curseforgeForge") {
+        from cfOptions
+        file project(":forge")
+        displayName = file.map { it.asFile.name }
+        modLoaders.add("forge")
+    }
+
+    curseforge("curseforgeFabric") {
+        from cfOptions
+        file project(":fabric")
+        displayName = file.map { it.asFile.name }
+        modLoaders.add("fabric")
+        requires("fabric-api")
     }
 }
