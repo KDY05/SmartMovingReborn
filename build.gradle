@@ -68,14 +68,14 @@ publishMods {
     curseforge("curseforgeNeoForge") {
         from cfOptions
         file project(":neoforge")
-        displayName = file.map { it.asFile.name }
+        displayName = project.version.toString()
         modLoaders.add("neoforge")
     }
 
     curseforge("curseforgeFabric") {
         from cfOptions
         file project(":fabric")
-        displayName = file.map { it.asFile.name }
+        displayName = project.version.toString()
         modLoaders.add("fabric")
         requires("fabric-api")
     }
