@@ -71,14 +71,6 @@ public abstract class PlayerMixin {
         }
     }
 
-    @Inject(method = "getDimensions", at = @At("HEAD"), cancellable = true)
-    private void smartmovingreborn$getDimensions(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
-        EntityDimensions result = MovingController.dimensions(smartmovingreborn$self(), pose);
-        if (result != null) {
-            cir.setReturnValue(result);
-        }
-    }
-
     @Inject(method = "getStandingEyeHeight", at = @At("HEAD"), cancellable = true)
     private void smartmovingreborn$getStandingEyeHeight(Pose pose, EntityDimensions dimensions,
                                                         CallbackInfoReturnable<Float> cir) {

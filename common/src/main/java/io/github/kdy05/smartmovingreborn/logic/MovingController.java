@@ -10,7 +10,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
@@ -437,11 +436,6 @@ public final class MovingController {
         }
         MovingState state = stateOf(player);
         return state != null && (state.swimming || state.diving) ? player.getY() + SWIM_FLUID_EYE_HEIGHT : eyeY;
-    }
-
-    /** Overrides {@code Player#getDimensions} when non-null. */
-    public static EntityDimensions dimensions(Player player, Pose pose) {
-        return null;
     }
 
     // Server
