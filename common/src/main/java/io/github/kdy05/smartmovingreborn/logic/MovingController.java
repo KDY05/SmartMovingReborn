@@ -145,14 +145,6 @@ public final class MovingController {
         self.applyInput(SmartMovingReborn.CLIENT_CONFIG);
     }
 
-    /** Replaces {@code LocalPlayer#moveTowardsClosestSpace} when true (original {@code pushOutOfBlocks}). */
-    public static boolean moveTowardsClosestSpace(Player player, double x, double z) {
-        if (!isActiveSelf(player)) {
-            return false;
-        }
-        return false;
-    }
-
     /** {@code LocalPlayer#move} HEAD (original {@code beforeMoveEntity}). */
     public static void beforeMove(Player player, MoverType type, Vec3 movement) {
         if (!isActiveSelf(player)) {
@@ -230,7 +222,7 @@ public final class MovingController {
         if (!isMovingSelf(entity)) {
             return null;
         }
-        return self.onClimbable();
+        return self.onClimbable(SmartMovingReborn.CLIENT_CONFIG);
     }
 
     /** Replaces {@code LivingEntity#handleOnClimbable} when non-null: ladders and vines before moving. */
@@ -303,7 +295,7 @@ public final class MovingController {
      */
     public static boolean jumpFromGround(Player player) {
         if (!isMovingSelf(player) || player.isInLava()
-                || player.isInWater() && !SelfSwimming.replacesVanilla(SmartMovingReborn.CLIENT_CONFIG)) {
+                || (player.isInWater() && !SelfSwimming.replacesVanilla(SmartMovingReborn.CLIENT_CONFIG))) {
             return false;
         }
         self.avoidJump();
@@ -457,13 +449,6 @@ public final class MovingController {
     }
 
     // Server
-
-    /** {@code ServerGamePacketListenerImpl#handleMovePlayer}, once on the server thread (the original's core mod). */
-    public static void beforeHandleMovePlayer(ServerPlayer player) {
-        if (!isActiveOnServer(player)) {
-            return;
-        }
-    }
 
     /**
      * {@code ServerGamePacketListenerImpl#handleMovePlayer} at every return on the server thread

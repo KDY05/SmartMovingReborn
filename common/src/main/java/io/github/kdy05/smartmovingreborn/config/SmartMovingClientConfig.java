@@ -50,7 +50,7 @@ public final class SmartMovingClientConfig extends SmartMovingConfig {
             "Below you find the options to define in which case Smart Moving should write messages about its current behavior to the ingame chat",
             on("move.config.chat", "To switch on/off option status messages via chat system"));
     public final BooleanProperty configChatInit = on("move.config.chat.init",
-            "To switch on/off the initial option status message when starting a game (Relevant only if \"move.config.chat\" is not false)")
+            "To switch on/off the initial option status message when starting a game (Relevant only if \"move.config.chat\" is not false) (not implemented yet)")
             .dependsOn(configChat::get);
     public final BooleanProperty configChatServer = on("move.config.chat.server",
             "To switch on/off the server config overridden status message when joining a multiplayer game (Relevant only if \"move.config.chat\" is not false)")

@@ -1,6 +1,5 @@
 package io.github.kdy05.smartmovingreborn.logic;
 
-import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingConfig;
@@ -60,6 +59,8 @@ final class SelfClimbing {
     private boolean wantCrawlNotClimb;
     private boolean wantClimb;
     private boolean jumpStarted;
+    /** A jump off a hold during this move, which set the player's motion itself. */
+    private boolean jumped;
     /** Hanging on without climbing ({@code isClimbHolding}). */
     boolean holding;
     /** Would hang on if climbing ({@code wantClimbHolding}). */
@@ -77,8 +78,6 @@ final class SelfClimbing {
     /** The blocks the hands and feet last held, for the sounds. */
     private BlockState handsEdge;
     private BlockState feetEdge;
-    private int handsEdgeMeta = -1;
-    private int feetEdgeMeta = -1;
     /** On a ladder or vine the original's way, measured before this tick's movement. */
     private boolean onLadder;
     private boolean onVine;
@@ -112,8 +111,6 @@ final class SelfClimbing {
         climbCrawlGap = false;
         handsEdge = null;
         feetEdge = null;
-        handsEdgeMeta = -1;
-        feetEdgeMeta = -1;
         onLadder = false;
         onVine = false;
         pushBack = Float.NaN;
@@ -154,9 +151,9 @@ final class SelfClimbing {
                      boolean wantCrawl, boolean sneaking, boolean disabled, SmartMovingClientConfig config) {
         wantCrawlNotClimb = (wantCrawlNotClimb || grab.startPressed && !wasCrawling) && grab.pressed && forward
                 && state.crawling && player.horizontalCollision;
-        boolean facedToSolidVine = count(1, true, false, true) > 0;
+        boolean facedToSolidVine = count(1, true, false, true, config) > 0;
         wouldWantClimb = (grab.pressed || holding && sneak.pressed
-                || config.isFreeBaseClimb() && config.climbFreeLadderAuto.get() && count(1, true, true, false) > 0
+                || config.isFreeBaseClimb() && config.climbFreeLadderAuto.get() && count(1, true, true, false, config) > 0
                 || config.isFreeBaseClimb() && config.climbFreeVineAuto.get() && facedToSolidVine)
                 && (!state.sliding || grab.pressed && forward)
                 && !state.headJumping
@@ -229,8 +226,7 @@ final class SelfClimbing {
      *
      * @param faceOnly only ladders and solid vines the player faces
      */
-    private int count(int maxResult, boolean faceOnly, boolean ladder, boolean vine) {
-        SmartMovingClientConfig config = SmartMovingReborn.CLIENT_CONFIG;
+    private int count(int maxResult, boolean faceOnly, boolean ladder, boolean vine, SmartMovingClientConfig config) {
         ClimbTerrain terrain = terrain();
         AABB box = player.getBoundingBox();
         int x = Mth.floor(player.getX());
@@ -255,10 +251,10 @@ final class SelfClimbing {
      * back from a ladder, trap door or wall right above a climber facing it ({@code climbingUpIsBlockedBy*}),
      * which replaces walking for the tick.
      */
-    void beforeTravel(boolean forwardInput) {
+    void beforeTravel(boolean forwardInput, SmartMovingClientConfig config) {
         handled = false;
-        onLadder = count(1, false, true, false) > 0;
-        onVine = count(1, false, false, true) > 0;
+        onLadder = count(1, false, true, false, config) > 0;
+        onVine = count(1, false, false, true, config) > 0;
         pushBack = Float.NaN;
         if (state.climbing && player.horizontalCollision && player.verticalCollision && !player.onGround()
                 && forwardInput) {
@@ -279,8 +275,8 @@ final class SelfClimbing {
     }
 
     /** Overrides {@code LivingEntity#onClimbable} when non-null: true on the original's ladders and vines. */
-    Boolean onClimbable() {
-        return count(1, false, true, true) > 0 ? Boolean.TRUE : null;
+    Boolean onClimbable(SmartMovingClientConfig config) {
+        return count(1, false, true, true, config) > 0 ? Boolean.TRUE : null;
     }
 
     /**
@@ -296,8 +292,8 @@ final class SelfClimbing {
             double z = Mth.clamp(motion.z, -0.15, 0.15);
             double y = motion.y;
             boolean freeBase = config.isFreeBaseClimb();
-            boolean notTotalFree = !state.climbing && onLadder && !(freeBase && config.climbFreeBaseLadder.get())
-                    || onVine && !(freeBase && config.climbFreeBaseVine.get());
+            boolean notTotalFree = (!state.climbing && onLadder && !(freeBase && config.climbFreeBaseLadder.get()))
+                    || (onVine && !(freeBase && config.climbFreeBaseVine.get()));
             if (notTotalFree) {
                 player.resetFallDistance();
                 y = Math.max(y, -0.15 * speedFactor);
@@ -341,11 +337,11 @@ final class SelfClimbing {
                    boolean crawlStartConflict, SmartMovingClientConfig config) {
         handled = true;
         Vec3 motion = player.getDeltaMovement();
+        jumped = false;
         double y = handleClimbing(motion.y, grabPressed, fast, speedFactor, config);
-        Vec3 jumped = player.getDeltaMovement();
         Vec3 result;
-        if (jumped != motion) {
-            result = jumped;
+        if (jumped) {
+            result = player.getDeltaMovement();
         } else if (!onLadder && !onVine && !state.climbing && player.onClimbable()) {
             result = vanilla;
         } else {
@@ -461,6 +457,7 @@ final class SelfClimbing {
             JumpType type = decision.jumpType() == 5 ? JumpType.CLIMB_UP : JumpType.CLIMB_UP_HANDS_ONLY;
             jumpedUp = jumper.jump(type, Float.NaN, config);
             state.climbJumping = jumpedUp;
+            jumped = jumpedUp;
         }
         if (decision.climbing() && !jumpedUp) {
             motionY = setClimbSpeed(decision.speed(), motionY, fast, speedFactor, config);
@@ -471,6 +468,7 @@ final class SelfClimbing {
             int type = ClimbLogic.backJumpType(feet != FeetClimbing.NONE, config.climbJumpBackHeadOnGrab.get(),
                     grabPressed);
             if (jumper.jump(BACK_JUMPS[type - 7], player.getYRot() + 180, config)) {
+                jumped = true;
                 state.climbing = false;
             }
         }
@@ -479,9 +477,7 @@ final class SelfClimbing {
             player.resetFallDistance();
         }
         handsEdge = result.handsGap().block;
-        handsEdgeMeta = result.handsGap().meta;
         feetEdge = feetGap.block;
-        feetEdgeMeta = feetGap.meta;
         return motionY;
     }
 
@@ -551,7 +547,7 @@ final class SelfClimbing {
         state.climbing = true;
         float factor = fast ? speedFactor * config.sprintFactor.get() : speedFactor;
         float ladderFactor = config.isFreeBaseClimb() && speed == ClimbLogic.STRAIGHT_UP
-                ? ClimbLogic.ladderFactor(count(Integer.MAX_VALUE, false, true, false),
+                ? ClimbLogic.ladderFactor(count(Integer.MAX_VALUE, false, true, false, config),
                 config.climbFreeLadderOneUpSpeedFactor.get(), config.climbFreeLadderTwoUpSpeedFactor.get())
                 : 1;
         double value = ClimbLogic.scale(speed, factor, ladderFactor, config.climbFreeUpSpeedFactor.get(),
