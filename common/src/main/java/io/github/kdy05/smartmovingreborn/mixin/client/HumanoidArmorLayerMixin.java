@@ -32,6 +32,16 @@ public abstract class HumanoidArmorLayerMixin {
         smartmovingreborn$entity = entity;
     }
 
+    /** Lets go of the entity, so that it neither stays referenced nor reaches a later call from elsewhere. */
+    @Inject(method = "render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;ILnet/minecraft/world/entity/LivingEntity;FFFFFF)V",
+            at = @At("RETURN"))
+    private void smartmovingreborn$afterRender(PoseStack poseStack, MultiBufferSource buffer, int packedLight,
+                                               LivingEntity entity, float limbSwing, float limbSwingAmount,
+                                               float partialTicks, float ageInTicks, float netHeadYaw,
+                                               float headPitch, CallbackInfo ci) {
+        smartmovingreborn$entity = null;
+    }
+
     /** Right after the armor model took the player model's part poses. */
     @Inject(method = "setPartVisibility", at = @At("TAIL"))
     private void smartmovingreborn$afterCopy(HumanoidModel<?> model, EquipmentSlot slot, CallbackInfo ci) {
