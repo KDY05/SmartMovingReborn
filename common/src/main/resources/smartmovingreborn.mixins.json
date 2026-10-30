@@ -9,6 +9,7 @@
     "common.LivingEntityMixin",
     "common.PlayerMixin",
     "server.ChunkMapAccessor",
+    "server.ServerEntityMixin",
     "server.ServerGamePacketListenerImplAccessor",
     "server.ServerGamePacketListenerImplMixin",
     "server.TrackedEntityAccessor"
