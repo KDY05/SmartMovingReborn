@@ -145,7 +145,7 @@ public final class SmartMovingClient {
      */
     private static void updateLocalState(Minecraft minecraft, LocalPlayer player) {
         if (!isActive()) {
-            MovingController.resetSelf();
+            MovingController.disableSelf();
             LOCAL_STATE.clear();
             return;
         }
