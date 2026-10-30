@@ -584,10 +584,13 @@ final class SelfSwimming {
 
     /**
      * Vanilla's land movement ({@code LivingEntity.travel}'s last branch), for the ticks the original moved a player
-     * in water on land. Forge's block friction and gravity attribute are not known here; vanilla's values apply.
+     * in water on land. NeoForge's block friction is not known here; vanilla's applies.
      */
     private void landTravel(Vec3 input) {
-        double gravity = player.getDeltaMovement().y <= 0 && player.hasEffect(MobEffects.SLOW_FALLING) ? 0.01 : 0.08;
+        double gravity = player.getGravity();
+        if (player.getDeltaMovement().y <= 0 && player.hasEffect(MobEffects.SLOW_FALLING)) {
+            gravity = Math.min(gravity, 0.01);
+        }
         Level level = player.level();
         BlockPos below = ((EntityAccessor) player).smartmovingreborn$getBlockPosBelowThatAffectsMyMovement();
         float friction = level.getBlockState(below).getBlock().getFriction();
