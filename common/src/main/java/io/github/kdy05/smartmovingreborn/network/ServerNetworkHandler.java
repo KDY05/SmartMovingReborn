@@ -14,6 +14,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -28,6 +29,8 @@ import java.util.WeakHashMap;
 public final class ServerNetworkHandler {
     /** The last state each player's client sent. Server thread only. */
     private static final Map<ServerPlayer, MovingState> STATES = new WeakHashMap<>();
+    /** The same states as the client encoded them, for relaying to players that start tracking. Server thread only. */
+    private static final Map<ServerPlayer, Long> ENCODED_STATES = new WeakHashMap<>();
     /**
      * The connections whose client sent a state, and so got the server's configuration. Keyed by connection, not
      * player, because respawning makes a new {@code ServerPlayer} on the same connection. Server thread only.
@@ -68,6 +71,7 @@ public final class ServerNetworkHandler {
         }
         MovingState state = STATES.computeIfAbsent(sender, player -> new MovingState());
         StatePacketCodec.decode(message.state(), state);
+        ENCODED_STATES.put(sender, message.state());
         // Shrink right away: the next movement packet may already lead into a one block high gap, and it can
         // be handled before the player's tick updates the pose.
         if (state.smallPose()) {
@@ -85,6 +89,18 @@ public final class ServerNetworkHandler {
             if (hasMod(target)) {
                 Network.sendTo(target, relay);
             }
+        }
+    }
+
+    /**
+     * Runs on the server thread when {@code viewer} starts tracking {@code entity}, after the packets that add it.
+     * Sends the last state of a player entity, so that a viewer whose tracking range is not the player's own
+     * (1.21.1 tracks by each viewer's view distance) need not wait for that player's next change.
+     */
+    public static void onStartTracking(Entity entity, ServerPlayer viewer) {
+        Long state = entity instanceof ServerPlayer player ? ENCODED_STATES.get(player) : null;
+        if (state != null && Network.canSendTo(viewer)) {
+            Network.sendTo(viewer, new StateRelayMessage(entity.getId(), state));
         }
     }
 
