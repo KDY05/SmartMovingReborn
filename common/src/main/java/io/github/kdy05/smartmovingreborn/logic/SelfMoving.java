@@ -159,7 +159,7 @@ public final class SelfMoving {
         // Sliding and head jumping keep the small pose on their own.
         boolean mustCrawl = !state.sliding && !state.headJumping && CrawlLogic.mustCrawl(crawling,
                 fits(Pose.STANDING), fits(Pose.CROUCHING), flying,
-                this.flying.flyEnabled(config) || config.levitateSmall.get() && !player.isSpectator());
+                this.flying.flyEnabled(config) || (config.levitateSmall.get() && !player.isSpectator()));
         boolean inputContinueCrawl = CrawlLogic.inputContinueCrawl(config.crawlToggle.get(), toggles.isCrawlToggled(),
                 sneak.pressed, config.climbFree.get(), grab.pressed);
         boolean wouldWantCrawl = CrawlLogic.wantCrawl(true, crawling, flying,
@@ -518,7 +518,7 @@ public final class SelfMoving {
         travelStartY = player.getDeltaMovement().y;
         swimming.beforeTravel();
         jumping.handleJumping(config);
-        climbing.beforeTravel(player.zza > 0);
+        climbing.beforeTravel(player.zza > 0, config);
         if (state.sliding && player.onGround()) {
             Vec3 motion = player.getDeltaMovement();
             double[] steered = SlideLogic.steer(motion.x, motion.z, player.xxa, config.slideControlAngle.get());
@@ -649,8 +649,8 @@ public final class SelfMoving {
      * {@code LivingEntity#onClimbable} for the own player when non-null: the original's ladders and vines
      * ({@code isOnLadder}).
      */
-    Boolean onClimbable() {
-        return climbing.onClimbable();
+    Boolean onClimbable(SmartMovingClientConfig config) {
+        return climbing.onClimbable(config);
     }
 
     /** Replaces {@code LivingEntity#handleOnClimbable} when non-null: ladder and vine handling before moving. */
