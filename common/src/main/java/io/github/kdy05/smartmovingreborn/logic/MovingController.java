@@ -69,10 +69,17 @@ public final class MovingController {
         self = new SelfMoving(player, SmartMovingClient.LOCAL_STATE);
     }
 
-    /** Client: forgets the own player's moves, when Smart Moving is inactive or a new connection starts. */
+    /** Client: forgets the own player's moves when a new connection starts. */
     public static void resetSelf() {
         if (self != null) {
             self.reset();
+        }
+    }
+
+    /** Client: forgets the own player's moves while Smart Moving is inactive, lowering a raised box. */
+    public static void disableSelf() {
+        if (self != null) {
+            self.disable();
         }
     }
 

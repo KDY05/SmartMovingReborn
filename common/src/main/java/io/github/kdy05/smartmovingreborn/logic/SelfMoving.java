@@ -89,6 +89,17 @@ public final class SelfMoving {
         reset();
     }
 
+    /**
+     * Forgets every move when Smart Moving is turned off. A box a block up goes back down to the model's feet
+     * where that fits, like {@link #endSmallMoves}, so that the player does not appear to jump a block.
+     */
+    void disable() {
+        if (lift.any() && fits(Pose.SWIMMING, -1)) {
+            lift.shift(-1);
+        }
+        reset();
+    }
+
     void reset() {
         state.crawling = false;
         state.sliding = false;
