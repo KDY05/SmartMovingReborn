@@ -28,9 +28,7 @@ import java.util.WeakHashMap;
 
 public final class ServerNetworkHandler {
     /** The last state each player's client sent. Server thread only. */
-    private static final Map<ServerPlayer, MovingState> STATES = new WeakHashMap<>();
-    /** The same states as the client encoded them, for relaying to players that start tracking. Server thread only. */
-    private static final Map<ServerPlayer, Long> ENCODED_STATES = new WeakHashMap<>();
+    private static final Map<ServerPlayer, Received> STATES = new WeakHashMap<>();
     /**
      * The connections whose client got the server's configuration. Keyed by connection, not player, because
      * respawning makes a new {@code ServerPlayer} on the same connection. Server thread only.
@@ -46,9 +44,19 @@ public final class ServerNetworkHandler {
     private ServerNetworkHandler() {
     }
 
+    /**
+     * A state a client sent, decoded, and as the client encoded it, for relaying to players that start tracking
+     * the sender.
+     */
+    private static final class Received {
+        final MovingState state = new MovingState();
+        long encoded;
+    }
+
     /** The last state {@code player}'s client sent, or null. */
     public static MovingState getState(ServerPlayer player) {
-        return STATES.get(player);
+        Received received = STATES.get(player);
+        return received == null ? null : received.state;
     }
 
     /**
@@ -60,9 +68,10 @@ public final class ServerNetworkHandler {
         if (CONFIGURED.add(sender.connection) && Network.canSendTo(sender)) {
             Network.sendTo(sender, ConfigSyncMessage.of(SmartMovingReborn.SERVER_CONFIG));
         }
-        MovingState state = STATES.computeIfAbsent(sender, player -> new MovingState());
-        StatePacketCodec.decode(message.state(), state);
-        ENCODED_STATES.put(sender, message.state());
+        Received received = STATES.computeIfAbsent(sender, player -> new Received());
+        StatePacketCodec.decode(message.state(), received.state);
+        received.encoded = message.state();
+        MovingState state = received.state;
         // Shrink right away: the next movement packet may already lead into a one block high gap, and it can
         // be handled before the player's tick updates the pose.
         if (state.smallPose()) {
@@ -89,9 +98,9 @@ public final class ServerNetworkHandler {
      * (1.21.1 tracks by each viewer's view distance) need not wait for that player's next change.
      */
     public static void onStartTracking(Entity entity, ServerPlayer viewer) {
-        Long state = entity instanceof ServerPlayer player ? ENCODED_STATES.get(player) : null;
-        if (state != null && Network.canSendTo(viewer)) {
-            Network.sendTo(viewer, new StateRelayMessage(entity.getId(), state));
+        Received received = entity instanceof ServerPlayer player ? STATES.get(player) : null;
+        if (received != null && Network.canSendTo(viewer)) {
+            Network.sendTo(viewer, new StateRelayMessage(entity.getId(), received.encoded));
         }
     }
 
@@ -101,7 +110,7 @@ public final class ServerNetworkHandler {
      * climbs, swims or dips, at most as loud as the client plays them.
      */
     public static void onSound(ServerPlayer sender, SoundMessage message) {
-        MovingState state = STATES.get(sender);
+        MovingState state = getState(sender);
         Float maxVolume = maxSoundVolumes().get(message.sound());
         SoundEvent sound = BuiltInRegistries.SOUND_EVENT.get(message.sound());
         if (state == null || !(state.climbing || state.ceilingClimbing || state.swimming || state.dipping)
@@ -118,11 +127,10 @@ public final class ServerNetworkHandler {
             // Every state, not just the default ones: a block may give its states different sound types.
             for (BlockState blockState : Block.BLOCK_STATE_REGISTRY) {
                 SoundType type = blockState.getSoundType();
-                // SelfClimbing.afterMove
-                volumes.merge(type.getStepSound().getLocation(), type.getVolume() * 0.15f, Math::max);
+                volumes.merge(type.getStepSound().getLocation(), type.getVolume() * MovementSounds.CLIMB_STEP_VOLUME,
+                        Math::max);
             }
-            // SelfSwimming and SelfJumping
-            volumes.merge(SoundEvents.PLAYER_SPLASH.getLocation(), 0.05f, Math::max);
+            volumes.merge(SoundEvents.PLAYER_SPLASH.getLocation(), MovementSounds.SPLASH_VOLUME, Math::max);
             maxSoundVolumes = volumes;
         }
         return maxSoundVolumes;

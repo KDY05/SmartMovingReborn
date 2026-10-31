@@ -109,14 +109,9 @@ public final class SmartMovingRender {
      * Smart Moving's way (the original did not send that).
      */
     private static boolean facesView(Entity entity, MovingState state) {
-        return state.sliding || state.headJumping || isAngleJumping(state) || isClimbPose(state)
+        return state.sliding || state.headJumping || state.angleJumping() || isClimbPose(state)
                 || state.ceilingClimbing || state.swimming || state.diving
                 || entity instanceof Player player && MovingController.smartFlying(player);
-    }
-
-    /** Whether the player is in a side or back jump ({@code SmartMoving.isAngleJumping}). */
-    private static boolean isAngleJumping(MovingState state) {
-        return state.angleJumpType > 1 && state.angleJumpType < 7;
     }
 
     /**
@@ -265,7 +260,7 @@ public final class SmartMovingRender {
             POSE.resetParts(model);
         }
         MovingState state = stateOf(entity);
-        if (!renderingHand && !renderingInventory && state != null && !state.lying() && isAngleJumping(state)) {
+        if (!renderingHand && !renderingInventory && state != null && !state.lying() && state.angleJumping()) {
             model.crouching = false;
         }
     }
@@ -276,7 +271,7 @@ public final class SmartMovingRender {
      */
     public static void afterArmSwing(HumanoidModel<?> model, Entity entity) {
         MovingState state = stateOf(entity);
-        if (!renderingHand && !renderingInventory && state != null && !state.lying() && isAngleJumping(state)) {
+        if (!renderingHand && !renderingInventory && state != null && !state.lying() && state.angleJumping()) {
             PoseCalculator.angleJumpArms(model, state.angleJumpType);
         }
     }
@@ -370,7 +365,7 @@ public final class SmartMovingRender {
             POSE.fall(MotionStatistics.of(player).distance(ageInTicks - player.tickCount));
             workArms(model, entity, state, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
-        } else if (isAngleJumping(state)) {
+        } else if (state.angleJumping()) {
             POSE.reset(model);
             OuterFade outer = OUTERS.get(entity);
             POSE.angleJumpLegs(model, state.angleJumpType, outer == null ? 0 : outer.viewOffset);
@@ -430,7 +425,7 @@ public final class SmartMovingRender {
         float shoulderYaw = netHeadYaw * Mth.DEG_TO_RAD;
         if (entity instanceof LocalPlayer) {
             OuterFade outer = OUTERS.get(entity);
-            if (facesView(entity, state) && !isAngleJumping(state)) {
+            if (facesView(entity, state) && !state.angleJumping()) {
                 shoulderYaw = 0;
             } else if (outer != null) {
                 shoulderYaw = outer.viewOffset;
