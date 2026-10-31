@@ -18,7 +18,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.level.ClipContext;
@@ -57,6 +56,9 @@ public final class SmartMovingRender {
     private static boolean renderingHand;
     /** Set while the player is drawn in the inventory screen, which keeps vanilla's pose like the original's. */
     private static boolean renderingInventory;
+    /** The player being drawn and what posing it needs, taken at the start of drawing it; null otherwise. */
+    private static Entity drawnPlayer;
+    private static PoseFrame drawnFrame;
     /** The player whose model was last given a Smart Moving pose, while its layers are drawn. */
     private static Entity posedEntity;
     /** {@link #posedEntity}'s breast transform ({@link PoseCalculator#breastTransform}). */
@@ -134,6 +136,8 @@ public final class SmartMovingRender {
     public static void beforeRender(AbstractClientPlayer player, float partialTicks) {
         MovingState state = stateOf(player);
         renderingInventory = isInventory(partialTicks);
+        drawnPlayer = null;
+        drawnFrame = null;
         if (state == null || renderingInventory) {
             return;
         }
@@ -192,7 +196,10 @@ public final class SmartMovingRender {
                     * Mth.DEG_TO_RAD;
         }
 
-        outer.bodyRot = facesView(player, state)
+        drawnPlayer = player;
+        drawnFrame = captureFrame(player, state, outer, partialTicks, time);
+
+        outer.bodyRot = drawnFrame.facesView
                 ? Mth.rotLerp(partialTicks, player.yRotO, player.getYRot()) : player.yBodyRot;
         outer.bodyRotO = player.yBodyRotO;
         player.yBodyRot = outer.yaw * Mth.RAD_TO_DEG;
@@ -221,6 +228,8 @@ public final class SmartMovingRender {
     /** {@code PlayerRenderer#render} TAIL: puts back the body yaw {@link #beforeRender} replaced for drawing. */
     public static void afterRender(AbstractClientPlayer player) {
         renderingInventory = false;
+        drawnPlayer = null;
+        drawnFrame = null;
         posedEntity = null;
         OuterFade outer = OUTERS.get(player);
         if (outer == null || Float.isNaN(outer.bodyRot)) {
@@ -260,8 +269,8 @@ public final class SmartMovingRender {
         if (POSED.remove(model)) {
             POSE.resetParts(model);
         }
-        MovingState state = stateOf(entity);
-        if (!renderingHand && !renderingInventory && state != null && !state.lying() && state.angleJumping()) {
+        PoseFrame frame = frameOf(entity);
+        if (frame != null && !frame.state.lying() && frame.state.angleJumping()) {
             model.crouching = false;
         }
     }
@@ -271,107 +280,44 @@ public final class SmartMovingRender {
      * ({@code animateArmSwinging}), and the rest of vanilla's arm animation applies on top.
      */
     public static void afterArmSwing(HumanoidModel<?> model, Entity entity) {
-        MovingState state = stateOf(entity);
-        if (!renderingHand && !renderingInventory && state != null && !state.lying() && state.angleJumping()) {
-            PoseCalculator.angleJumpArms(model, state.angleJumpType);
+        PoseFrame frame = frameOf(entity);
+        if (frame != null && !frame.state.lying() && frame.state.angleJumping()) {
+            PoseCalculator.angleJumpArms(model, frame.state.angleJumpType);
         }
     }
 
     /** {@code HumanoidModel#setupAnim} TAIL: replaces vanilla's pose with the Smart Moving one. */
     public static void setupAnim(HumanoidModel<?> model, Entity entity, float limbSwing, float limbSwingAmount,
                                  float ageInTicks, float netHeadYaw, float headPitch) {
-        MovingState state = stateOf(entity);
         posedEntity = null;
-        if (renderingHand || renderingInventory || state == null) {
+        PoseFrame frame = frameOf(entity);
+        if (frame == null || frame.kind == PoseFrame.Kind.NONE) {
             return;
         }
-        boolean crawlClimb = state.crawlClimbing || state.climbing && state.crawling;
-        boolean climbJump = state.climbJumping && entity instanceof Player jumper
-                && MotionStatistics.of(jumper).showsClimbJump();
-        if (state.climbing && !state.crawling && !state.crawlClimbing && !climbJump || crawlClimb) {
-            Player player = (Player) entity;
-            float partialTicks = ageInTicks - player.tickCount;
-            MotionStatistics statistics = MotionStatistics.of(player);
-            int handsType = state.handsVineClimbing && state.handsClimbType == 2 ? 1 : state.handsClimbType;
-            float[] limbs = CLIMB_FADES.computeIfAbsent(entity, e -> new ClimbFade())
-                    .update(ClimbFade.targets(handsType, state.feetClimbType), ageInTicks);
-            POSE.reset(model);
-            POSE.climb(headPitch, handsType, state.feetClimbType, limbs, state.handsVineClimbing,
-                    state.feetVineClimbing, statistics.verticalSpeed(partialTicks),
-                    statistics.verticalDistance(partialTicks), limbSwingAmount, limbSwing,
-                    statistics.distance(partialTicks), crawlClimb ? overGroundHeight(player) : Float.NaN);
-            workArms(model, entity, state, netHeadYaw, ageInTicks);
-            POSE.applyTo(model);
-        } else if (climbJump) {
-            POSE.reset(model);
-            POSE.climbJump();
-            workArms(model, entity, state, netHeadYaw, ageInTicks);
-            POSE.applyTo(model);
-        } else if (state.ceilingClimbing) {
-            POSE.reset(model);
-            POSE.ceilingClimb(limbSwing, limbSwingAmount);
-            workArms(model, entity, state, netHeadYaw, ageInTicks);
-            POSE.applyTo(model);
-        } else if (isSwimPose(state)) {
-            OuterFade outer = OUTERS.get(entity);
-            POSE.reset(model);
-            POSE.swim(limbSwing, limbSwingAmount, ageInTicks,
-                    outer == null ? PoseCalculator.swimTilt(limbSwingAmount) : outer.xRot);
-            workArms(model, entity, state, netHeadYaw, ageInTicks);
-            POSE.applyTo(model);
-        } else if (state.diving) {
-            Player player = (Player) entity;
-            float partialTicks = ageInTicks - player.tickCount;
-            MotionStatistics statistics = MotionStatistics.of(player);
-            OuterFade outer = OUTERS.get(entity);
-            POSE.reset(model);
-            POSE.dive(outer == null ? PoseCalculator.diveTilt(state.levitating, state.jumping, verticalAngle(entity))
-                    : outer.xRot, statistics.speed(partialTicks), statistics.distance(partialTicks));
-            workArms(model, entity, state, netHeadYaw, ageInTicks);
-            POSE.applyTo(model);
-        } else if (state.crawling) {
-            POSE.reset(model);
+        MovingState state = frame.state;
+        POSE.reset(model);
+        switch (frame.kind) {
+            case CLIMB -> POSE.climb(headPitch, frame.handsType, state.feetClimbType, frame.climbLimbs,
+                    state.handsVineClimbing, state.feetVineClimbing, frame.verticalSpeed, frame.verticalDistance,
+                    limbSwingAmount, limbSwing, frame.distance, frame.overGroundHeight);
+            case CLIMB_JUMP -> POSE.climbJump();
+            case CEILING_CLIMB -> POSE.ceilingClimb(limbSwing, limbSwingAmount);
+            case SWIM -> POSE.swim(limbSwing, limbSwingAmount, ageInTicks, frame.tilt);
+            case DIVE -> POSE.dive(frame.tilt, frame.speed, frame.distance);
             // The original rolled the head by the view's offset from the body yaw before easing.
-            OuterFade outer = OUTERS.get(entity);
-            POSE.crawl(limbSwing, limbSwingAmount, outer == null ? netHeadYaw * Mth.DEG_TO_RAD : outer.headOffset);
-            workArms(model, entity, state, netHeadYaw, ageInTicks);
+            case CRAWL -> POSE.crawl(limbSwing, limbSwingAmount, frame.headOffset);
+            case SLIDE -> POSE.slide(limbSwing, limbSwingAmount);
+            case FLY -> POSE.fly(frame.tilt, frame.flyTarget, frame.speed, frame.distance, ageInTicks);
+            case HEAD_JUMP -> POSE.headJump(frame.tilt, frame.verticalAngle, frame.armLimit);
+            case FALL -> POSE.fall(frame.distance);
+            case ANGLE_JUMP -> POSE.angleJumpLegs(model, state.angleJumpType, frame.viewOffset);
+            case NONE -> {
+            }
+        }
+        // A side or back jump's arms are vanilla's swing, replaced in afterArmSwing.
+        if (frame.kind != PoseFrame.Kind.ANGLE_JUMP) {
+            workArms(model, entity, frame, netHeadYaw, ageInTicks);
             POSE.applyTo(model);
-        } else if (state.sliding) {
-            POSE.reset(model);
-            POSE.slide(limbSwing, limbSwingAmount);
-            workArms(model, entity, state, netHeadYaw, ageInTicks);
-            POSE.applyTo(model);
-        } else if (isFlyPose(state)) {
-            Player player = (Player) entity;
-            float partialTicks = ageInTicks - player.tickCount;
-            MotionStatistics statistics = MotionStatistics.of(player);
-            float speed = statistics.speed(partialTicks);
-            float target = PoseCalculator.flyTilt(state.jumping, speed, verticalAngle(entity));
-            OuterFade outer = OUTERS.get(entity);
-            POSE.reset(model);
-            POSE.fly(outer == null ? target : outer.xRot, target, speed, statistics.distance(partialTicks),
-                    ageInTicks);
-            workArms(model, entity, state, netHeadYaw, ageInTicks);
-            POSE.applyTo(model);
-        } else if (state.headJumping) {
-            OuterFade outer = OUTERS.get(entity);
-            POSE.reset(model);
-            POSE.headJump(outer == null ? Mth.PI / 2 - verticalAngle(entity) : outer.xRot, verticalAngle(entity),
-                    armLimit(entity));
-            workArms(model, entity, state, netHeadYaw, ageInTicks);
-            POSE.applyTo(model);
-        } else if (state.fallingAnimation) {
-            Player player = (Player) entity;
-            POSE.reset(model);
-            POSE.fall(MotionStatistics.of(player).distance(ageInTicks - player.tickCount));
-            workArms(model, entity, state, netHeadYaw, ageInTicks);
-            POSE.applyTo(model);
-        } else if (state.angleJumping()) {
-            POSE.reset(model);
-            OuterFade outer = OUTERS.get(entity);
-            POSE.angleJumpLegs(model, state.angleJumpType, outer == null ? 0 : outer.viewOffset);
-        } else {
-            return;
         }
         POSED.add(model);
         posedEntity = entity;
@@ -415,31 +361,94 @@ public final class SmartMovingRender {
      * entity, which sliding, head jumping, climbing, swimming, diving and Smart Moving's flying set to the view,
      * so there they face the body.
      */
-    private static void workArms(HumanoidModel<?> model, Entity entity, MovingState state, float netHeadYaw,
+    private static void workArms(HumanoidModel<?> model, Entity entity, PoseFrame frame, float netHeadYaw,
                                  float ageInTicks) {
         boolean aimingRight = isAiming(model.rightArmPose);
         boolean aimingLeft = isAiming(model.leftArmPose);
         if (model.attackTime <= 0 && !aimingRight && !aimingLeft) {
             return;
         }
-        LivingEntity living = (LivingEntity) entity;
         float shoulderYaw = netHeadYaw * Mth.DEG_TO_RAD;
-        if (entity instanceof LocalPlayer) {
-            OuterFade outer = OUTERS.get(entity);
-            if (facesView(entity, state) && !state.angleJumping()) {
-                shoulderYaw = 0;
-            } else if (outer != null) {
-                shoulderYaw = outer.viewOffset;
-            }
+        if (frame.local) {
+            shoulderYaw = frame.facesView && !frame.state.angleJumping() ? 0 : frame.viewOffset;
         }
         if (aimingRight || aimingLeft) {
-            aimArms(model, living, aimingRight, ageInTicks, shoulderYaw);
+            aimArms(model, (LivingEntity) entity, aimingRight, ageInTicks, shoulderYaw);
         }
         if (model.attackTime > 0) {
-            HumanoidArm arm = living.swingingArm == InteractionHand.MAIN_HAND
-                    ? living.getMainArm() : living.getMainArm().getOpposite();
-            POSE.swingArm(arm, model.attackTime, shoulderYaw);
+            POSE.swingArm(frame.attackArm, model.attackTime, shoulderYaw);
         }
+    }
+
+    /** The frame taken for {@code entity}, while its model is drawn outside the first person hand; else null. */
+    private static PoseFrame frameOf(Entity entity) {
+        return !renderingHand && entity == drawnPlayer ? drawnFrame : null;
+    }
+
+    /**
+     * Takes what posing {@code player}'s model needs this frame, after the whole-body rotation's update. The
+     * original chose the pose in this order ({@code SmartMovingModel.setRotationAngles}).
+     */
+    private static PoseFrame captureFrame(AbstractClientPlayer player, MovingState state, OuterFade outer,
+                                          float partialTicks, float time) {
+        MotionStatistics statistics = MotionStatistics.of(player);
+        PoseFrame frame = new PoseFrame(state, poseKind(state, statistics));
+        frame.verticalSpeed = statistics.verticalSpeed(partialTicks);
+        frame.verticalDistance = statistics.verticalDistance(partialTicks);
+        frame.distance = statistics.distance(partialTicks);
+        frame.speed = statistics.speed(partialTicks);
+        frame.verticalAngle = verticalAngle(player);
+        frame.tilt = outer.xRot;
+        frame.headOffset = outer.headOffset;
+        frame.viewOffset = outer.viewOffset;
+        frame.local = player instanceof LocalPlayer;
+        frame.facesView = facesView(player, state);
+        frame.attackArm = player.swingingArm == InteractionHand.MAIN_HAND
+                ? player.getMainArm() : player.getMainArm().getOpposite();
+        switch (frame.kind) {
+            case CLIMB -> {
+                frame.handsType = state.handsVineClimbing && state.handsClimbType == 2 ? 1 : state.handsClimbType;
+                frame.climbLimbs = CLIMB_FADES.computeIfAbsent(player, e -> new ClimbFade())
+                        .update(ClimbFade.targets(frame.handsType, state.feetClimbType), time);
+                if (state.crawlClimbing || state.climbing && state.crawling) {
+                    frame.overGroundHeight = overGroundHeight(player);
+                }
+            }
+            case FLY -> frame.flyTarget = PoseCalculator.flyTilt(state.jumping, frame.speed, frame.verticalAngle);
+            case HEAD_JUMP -> frame.armLimit = armLimit(player);
+            default -> {
+            }
+        }
+        return frame;
+    }
+
+    private static PoseFrame.Kind poseKind(MovingState state, MotionStatistics statistics) {
+        boolean crawlClimb = state.crawlClimbing || state.climbing && state.crawling;
+        boolean climbJump = state.climbJumping && statistics.showsClimbJump();
+        if (state.climbing && !state.crawling && !state.crawlClimbing && !climbJump || crawlClimb) {
+            return PoseFrame.Kind.CLIMB;
+        } else if (climbJump) {
+            return PoseFrame.Kind.CLIMB_JUMP;
+        } else if (state.ceilingClimbing) {
+            return PoseFrame.Kind.CEILING_CLIMB;
+        } else if (isSwimPose(state)) {
+            return PoseFrame.Kind.SWIM;
+        } else if (state.diving) {
+            return PoseFrame.Kind.DIVE;
+        } else if (state.crawling) {
+            return PoseFrame.Kind.CRAWL;
+        } else if (state.sliding) {
+            return PoseFrame.Kind.SLIDE;
+        } else if (isFlyPose(state)) {
+            return PoseFrame.Kind.FLY;
+        } else if (state.headJumping) {
+            return PoseFrame.Kind.HEAD_JUMP;
+        } else if (state.fallingAnimation) {
+            return PoseFrame.Kind.FALL;
+        } else if (state.angleJumping()) {
+            return PoseFrame.Kind.ANGLE_JUMP;
+        }
+        return PoseFrame.Kind.NONE;
     }
 
     /** The two-handed aiming poses the original's bow aiming covers in Smart Moving poses. */
