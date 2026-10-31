@@ -1,12 +1,10 @@
 package io.github.kdy05.smartmovingreborn.logic;
 
-import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimSpeed;
 import io.github.kdy05.smartmovingreborn.mixin.common.EntityAccessor;
 import io.github.kdy05.smartmovingreborn.network.MovementSounds;
-import io.github.kdy05.smartmovingreborn.render.SwimParticles;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.world.ClimbOrientation;
 import io.github.kdy05.smartmovingreborn.world.LevelClimbTerrain;
@@ -330,7 +328,7 @@ final class SelfSwimming {
         Vec3 motion = moving.jumpedThisTick()
                 ? player.getDeltaMovement().subtract(0, diveUp ? SwimLogic.VANILLA_LIQUID_JUMP : 0, 0)
                 : player.getDeltaMovement().subtract(vanillaJump);
-        if (player.isInWater() && SmartMovingClient.isSneakInput(player)) {
+        if (player.isInWater() && moving.client.isSneakInput(player)) {
             motion = motion.add(0, SwimLogic.VANILLA_LIQUID_JUMP * SwimSpeed.of(player), 0);
         }
         double horizontal = SwimLogic.horizontalDamping(kind);
@@ -462,7 +460,7 @@ final class SelfSwimming {
         }
         distanceSwum += (float) distance;
         if (distanceSwum > 1.4285715f) {
-            SmartMovingClient.playSound(player, SoundEvents.PLAYER_SPLASH, MovementSounds.SPLASH_VOLUME,
+            moving.client.playSound(player, SoundEvents.PLAYER_SPLASH, MovementSounds.SPLASH_VOLUME,
                     MovementSounds.splashPitch(player.getRandom()));
             distanceSwum--;
         }
@@ -481,7 +479,7 @@ final class SelfSwimming {
             player.setDeltaMovement(player.getDeltaMovement().add(flow.normalize().scale(-0.014)));
         }
         Vec3 motion = player.getDeltaMovement();
-        SwimParticles.spawn(player, motion.x, motion.z, config);
+        moving.client.swimParticles(player, motion.x, motion.z, config);
     }
 
     /**

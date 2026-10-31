@@ -1,6 +1,5 @@
 package io.github.kdy05.smartmovingreborn.forge;
 
-import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
 import io.github.kdy05.smartmovingreborn.render.SmartMovingHud;
@@ -22,7 +21,7 @@ public final class SmartMovingRebornForgeClient {
     }
 
     static void init(IEventBus modBus) {
-        SmartMovingReborn.initClient();
+        SmartMovingClient.init();
         modBus.addListener((RegisterKeyMappingsEvent event) -> KeyBindings.ALL.forEach(event::register));
         MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
             if (event.phase == TickEvent.Phase.END) {

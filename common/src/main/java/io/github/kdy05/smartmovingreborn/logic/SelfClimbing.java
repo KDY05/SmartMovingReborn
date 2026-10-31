@@ -1,6 +1,5 @@
 package io.github.kdy05.smartmovingreborn.logic;
 
-import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingConfig;
 import io.github.kdy05.smartmovingreborn.input.Button;
@@ -49,6 +48,7 @@ final class SelfClimbing {
 
     private final Player player;
     private final MovingState state;
+    private final ClientHooks client;
     private final Jumper jumper;
 
     boolean wantClimbUp;
@@ -89,9 +89,10 @@ final class SelfClimbing {
     private float distanceClimbed;
     private int nextClimbDistance;
 
-    SelfClimbing(Player player, MovingState state, Jumper jumper) {
+    SelfClimbing(Player player, MovingState state, ClientHooks client, Jumper jumper) {
         this.player = player;
         this.state = state;
+        this.client = client;
         this.jumper = jumper;
     }
 
@@ -599,7 +600,7 @@ final class SelfClimbing {
         nextClimbDistance++;
         if (step != null) {
             SoundType sound = step.getSoundType();
-            SmartMovingClient.playSound(player, sound.getStepSound(),
+            client.playSound(player, sound.getStepSound(),
                     sound.getVolume() * MovementSounds.CLIMB_STEP_VOLUME, sound.getPitch());
         }
     }

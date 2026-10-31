@@ -1,6 +1,5 @@
 package io.github.kdy05.smartmovingreborn.fabric;
 
-import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
 import io.github.kdy05.smartmovingreborn.network.ConfigSyncMessage;
@@ -16,7 +15,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 public final class SmartMovingRebornFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
-        SmartMovingReborn.initClient();
+        SmartMovingClient.init();
         KeyBindings.ALL.forEach(KeyBindingHelper::registerKeyBinding);
         ClientPlayNetworking.registerGlobalReceiver(Network.RELAY_ID, (client, handler, buf, responseSender) -> {
             StateRelayMessage message = StateRelayMessage.read(buf);

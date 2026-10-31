@@ -1,6 +1,5 @@
 package io.github.kdy05.smartmovingreborn.logic;
 
-import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import net.minecraft.world.entity.player.Player;
 
 /**
@@ -34,10 +33,12 @@ final class BoxLift {
     }
 
     private final Player player;
+    private final ClientHooks client;
     private Reason reason;
 
-    BoxLift(Player player) {
+    BoxLift(Player player, ClientHooks client) {
         this.player = player;
+        this.client = client;
     }
 
     void reset() {
@@ -77,6 +78,6 @@ final class BoxLift {
         player.setPos(player.getX(), player.getY() + dy, player.getZ());
         player.yo += dy;
         player.yOld += dy;
-        SmartMovingClient.offsetCameraEyeHeight(player, (float) dy);
+        client.offsetCameraEyeHeight(player, (float) dy);
     }
 }
