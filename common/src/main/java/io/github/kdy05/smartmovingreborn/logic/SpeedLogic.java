@@ -20,42 +20,65 @@ public final class SpeedLogic {
     private SpeedLogic() {
     }
 
-    /**
-     * The multiplier on vanilla's speed on land and in the air.
-     *
-     * @param itemFactor  the item usage factor while using an item, otherwise 1
-     * @param running     vanilla sprinting without Smart Moving's sprint, on the ground (the original's {@code isRunning})
-     * @param sprinting   whether vanilla sprints, i.e. whether vanilla's speed includes its sprint bonus
-     */
-    public static float landSpeedFactor(float globalFactor, float itemFactor,
-                                        boolean crawling, float crawlFactor, boolean slow, float sneakFactor,
-                                        boolean fast, float sprintFactor, boolean running, float runFactor,
-                                        boolean sprinting) {
-        float factor = globalFactor * itemFactor;
-        if (crawling) {
-            factor *= crawlFactor;
-        } else if (slow) {
-            factor *= sneakFactor;
+    /** How the player carries itself, for the speed: crawling wins over sneaking. */
+    public enum Posture {
+        UPRIGHT, SNEAKING, CRAWLING;
+
+        public static Posture of(boolean crawling, boolean slow) {
+            return crawling ? CRAWLING : slow ? SNEAKING : UPRIGHT;
         }
-        if (fast) {
-            factor *= sprintFactor;
-        } else if (running) {
-            factor *= runFactor;
+    }
+
+    /** How fast the player goes, for the speed: Smart Moving's sprint wins over vanilla's run. */
+    public enum Pace {
+        WALKING, RUNNING, SPRINTING;
+
+        /** @param running vanilla sprinting without Smart Moving's sprint, on the ground (the original's {@code isRunning}) */
+        public static Pace of(boolean fast, boolean running) {
+            return fast ? SPRINTING : running ? RUNNING : WALKING;
         }
-        return sprinting ? factor / VANILLA_SPRINT_FACTOR : factor;
+    }
+
+    /** The configured speed factors of the postures and paces. */
+    public record Factors(float crawl, float sneak, float sprint, float run) {
     }
 
     /**
-     * Whether the input asks for sneaking regardless of the switch ({@code wouldWantSneak}): held, or toggled
-     * (which a fresh press also starts), unless crawling, sliding, head jumping, flying with Smart Moving or
-     * holding grab. Swimming and diving join with those moves.
+     * The multiplier on vanilla's speed on land and in the air.
+     *
+     * @param itemFactor the item usage factor while using an item, otherwise 1
+     * @param sprinting  whether vanilla sprints, i.e. whether vanilla's speed includes its sprint bonus
      */
-    public static boolean wouldWantSneak(boolean toggleMode, boolean toggled, boolean sneakPressed,
-                                         boolean sneakStarted, boolean wantCrawl, boolean mustCrawl,
+    public static float landSpeedFactor(float globalFactor, float itemFactor, Posture posture, Pace pace,
+                                        Factors factors, boolean sprinting) {
+        float factor = globalFactor * itemFactor;
+        factor *= switch (posture) {
+            case CRAWLING -> factors.crawl();
+            case SNEAKING -> factors.sneak();
+            case UPRIGHT -> 1;
+        };
+        factor *= switch (pace) {
+            case SPRINTING -> factors.sprint();
+            case RUNNING -> factors.run();
+            case WALKING -> 1;
+        };
+        return sprinting ? factor / VANILLA_SPRINT_FACTOR : factor;
+    }
+
+    /** The sneak key's wish: held, or toggled with {@code move.sneak.toggle}, which a fresh press also starts. */
+    public static boolean sneakInput(boolean toggleMode, boolean toggled, boolean sneakPressed, boolean sneakStarted) {
+        return toggleMode ? toggled || sneakStarted : sneakPressed;
+    }
+
+    /**
+     * Whether the input asks for sneaking regardless of the switch ({@code wouldWantSneak}): the {@link #sneakInput},
+     * unless crawling, sliding, head jumping, flying with Smart Moving or holding grab. Swimming and diving join
+     * with those moves.
+     */
+    public static boolean wouldWantSneak(boolean sneakInput, boolean wantCrawl, boolean mustCrawl,
                                          boolean crawlEnabled, boolean grabPressed, boolean flying,
                                          boolean slidingOrHeadJumping) {
-        boolean continueInput = toggleMode ? toggled || sneakStarted : sneakPressed;
-        return !flying && !slidingOrHeadJumping && continueInput && !wantCrawl && !mustCrawl
+        return !flying && !slidingOrHeadJumping && sneakInput && !wantCrawl && !mustCrawl
                 && (!crawlEnabled || !grabPressed);
     }
 

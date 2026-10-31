@@ -188,9 +188,10 @@ public final class SelfMoving {
         updateSlideAndHeadJump(sneak, grab, flying, onGround, config);
 
         boolean inWater = state.swimming || state.diving;
-        boolean wouldWantSneak = SpeedLogic.wouldWantSneak(config.sneakToggle.get(), toggles.isSneakToggled(),
-                sneak.pressed, sneak.startPressed, wantCrawl, mustCrawl, config.crawl.get(), grab.pressed, smartFlying,
-                state.sliding || state.headJumping)
+        boolean sneakInput = SpeedLogic.sneakInput(config.sneakToggle.get(), toggles.isSneakToggled(), sneak.pressed,
+                sneak.startPressed);
+        boolean wouldWantSneak = SpeedLogic.wouldWantSneak(sneakInput, wantCrawl, mustCrawl, config.crawl.get(),
+                grab.pressed, smartFlying, state.sliding || state.headJumping)
                 && SwimLogic.allowsSneak(state.swimming, state.diving, config.swimDownOnSneak.get(),
                 config.diveDownOnSneak.get(), swimming.fakeShallowWaterSneaking());
         boolean wantSneak = config.sneak.get() && wouldWantSneak;
@@ -661,10 +662,7 @@ public final class SelfMoving {
         if (state.sliding || climbing.pushedBack()) {
             return 0;
         }
-        return SpeedLogic.landSpeedFactor(config.speedFactor.get(), itemFactor(config),
-                state.crawling || state.crawlClimbing && !climbing.climbCrawling, config.crawlFactor.get(), state.slow, sneakFactor(config),
-                state.fast, config.sprintFactor.get(), config.run.get() && isRunning(), config.runFactor.get(),
-                player.isSprinting())
+        return gaitFactor(config.speedFactor.get(), config.run.get() && isRunning(), player.isSprinting(), config)
                 * SpeedLogic.jumpFactor(player.onGround(), jumpInput, state.fast, config.sprintJump.get(),
                 config.sprintJumpVerticalFactor.get(), config.jumpControlFactor.get(), state.headJumping,
                 config.headJumpControlFactor.get())
@@ -708,9 +706,23 @@ public final class SelfMoving {
      * crawling or sneaking, and Smart Moving's sprint.
      */
     float ownSpeedFactor(SmartMovingClientConfig config) {
-        return speedFactor(config) * SpeedLogic.landSpeedFactor(1, itemFactor(config),
-                state.crawling || state.crawlClimbing && !climbing.climbCrawling, config.crawlFactor.get(), state.slow,
-                sneakFactor(config), state.fast, config.sprintFactor.get(), false, 1, false);
+        return speedFactor(config) * gaitFactor(1, false, false, config);
+    }
+
+    /**
+     * {@link SpeedLogic#landSpeedFactor} for the player's posture and pace: the item usage, crawling (also crawl
+     * climbing small) or sneaking, and Smart Moving's sprint or vanilla's run.
+     *
+     * @param running   vanilla's run counts
+     * @param sprinting the speed this multiplies includes vanilla's sprint bonus
+     */
+    private float gaitFactor(float globalFactor, boolean running, boolean sprinting, SmartMovingClientConfig config) {
+        SpeedLogic.Posture posture = SpeedLogic.Posture.of(
+                state.crawling || state.crawlClimbing && !climbing.climbCrawling, state.slow);
+        SpeedLogic.Factors factors = new SpeedLogic.Factors(config.crawlFactor.get(), sneakFactor(config),
+                config.sprintFactor.get(), config.runFactor.get());
+        return SpeedLogic.landSpeedFactor(globalFactor, itemFactor(config), posture,
+                SpeedLogic.Pace.of(state.fast, running), factors, sprinting);
     }
 
     /**

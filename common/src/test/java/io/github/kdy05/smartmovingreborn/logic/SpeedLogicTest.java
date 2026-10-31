@@ -10,9 +10,12 @@ class SpeedLogicTest {
     private static final float SPRINT = 1.5f;
     private static final float RUN = 1.3f;
 
+    private static final SpeedLogic.Factors FACTORS = new SpeedLogic.Factors(CRAWL, SNEAK, SPRINT, RUN);
+
     private static float factor(float item, boolean crawling, boolean slow, boolean fast, boolean running,
                                 boolean sprinting) {
-        return SpeedLogic.landSpeedFactor(1, item, crawling, CRAWL, slow, SNEAK, fast, SPRINT, running, RUN, sprinting);
+        return SpeedLogic.landSpeedFactor(1, item, SpeedLogic.Posture.of(crawling, slow),
+                SpeedLogic.Pace.of(fast, running), FACTORS, sprinting);
     }
 
     @Test
@@ -49,27 +52,30 @@ class SpeedLogicTest {
     @Test
     void factorsMultiply() {
         assertEquals(2 * 0.2f * CRAWL * SPRINT,
-                SpeedLogic.landSpeedFactor(2, 0.2f, true, CRAWL, false, SNEAK, true, SPRINT, false, RUN, false), 1e-6);
+                SpeedLogic.landSpeedFactor(2, 0.2f, SpeedLogic.Posture.CRAWLING, SpeedLogic.Pace.SPRINTING, FACTORS,
+                        false), 1e-6);
         assertEquals(0.2f * SNEAK, factor(0.2f, false, true, false, false, false), 1e-6);
     }
 
     @Test
     void sneakFollowsTheInputOrTheToggle() {
-        assertTrue(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, false, false, false));
-        assertFalse(SpeedLogic.wouldWantSneak(false, true, false, false, false, false, true, false, false, false));
-        assertTrue(SpeedLogic.wouldWantSneak(true, true, false, false, false, false, true, false, false, false));
-        assertTrue(SpeedLogic.wouldWantSneak(true, false, true, true, false, false, true, false, false, false));
-        assertFalse(SpeedLogic.wouldWantSneak(true, false, true, false, false, false, true, false, false, false));
+        assertTrue(SpeedLogic.sneakInput(false, false, true, false));
+        assertFalse(SpeedLogic.sneakInput(false, true, false, false));
+        assertTrue(SpeedLogic.sneakInput(true, true, false, false));
+        assertTrue(SpeedLogic.sneakInput(true, false, true, true));
+        assertFalse(SpeedLogic.sneakInput(true, false, true, false));
+        assertTrue(SpeedLogic.wouldWantSneak(true, false, false, true, false, false, false));
+        assertFalse(SpeedLogic.wouldWantSneak(false, false, false, true, false, false, false));
     }
 
     @Test
     void crawlingSlidingGrabAndFlyingPreventSneaking() {
-        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, true, false, true, false, false, false));
-        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, true, true, false, false, false));
-        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, true, false, false));
-        assertTrue(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, false, true, false, false));
-        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, false, true, false));
-        assertFalse(SpeedLogic.wouldWantSneak(false, false, true, false, false, false, true, false, false, true));
+        assertFalse(SpeedLogic.wouldWantSneak(true, true, false, true, false, false, false));
+        assertFalse(SpeedLogic.wouldWantSneak(true, false, true, true, false, false, false));
+        assertFalse(SpeedLogic.wouldWantSneak(true, false, false, true, true, false, false));
+        assertTrue(SpeedLogic.wouldWantSneak(true, false, false, false, true, false, false));
+        assertFalse(SpeedLogic.wouldWantSneak(true, false, false, true, false, true, false));
+        assertFalse(SpeedLogic.wouldWantSneak(true, false, false, true, false, false, true));
     }
 
     @Test
