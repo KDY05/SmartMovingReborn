@@ -6,6 +6,7 @@ import io.github.kdy05.smartmovingreborn.config.SmartMovingConfig;
 import io.github.kdy05.smartmovingreborn.input.Button;
 import io.github.kdy05.smartmovingreborn.logic.climb.ClimbLogic;
 import io.github.kdy05.smartmovingreborn.logic.jump.JumpType;
+import io.github.kdy05.smartmovingreborn.network.MovementSounds;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.world.CeilingBlocks;
 import io.github.kdy05.smartmovingreborn.world.ClimbGap;
@@ -453,9 +454,8 @@ final class SelfClimbing {
         ClimbLogic.Decision decision = ClimbLogic.decide(hands, feet, wantClimbUp, wantClimbDown, climbGap,
                 climbCrawlGap, player.onGround(), feetOnBed, holding);
         boolean jumpedUp = false;
-        if (decision.jumpType() != 0 && jumpStarted) {
-            JumpType type = decision.jumpType() == 5 ? JumpType.CLIMB_UP : JumpType.CLIMB_UP_HANDS_ONLY;
-            jumpedUp = jumper.jump(type, Float.NaN, config);
+        if (decision.jumpType() != null && jumpStarted) {
+            jumpedUp = jumper.jump(decision.jumpType(), Float.NaN, config);
             state.climbJumping = jumpedUp;
             jumped = jumpedUp;
         }
@@ -465,9 +465,9 @@ final class SelfClimbing {
             state.feetClimbType = decision.feetType();
         }
         if (wantClimbDown && holding && jumpStarted) {
-            int type = ClimbLogic.backJumpType(feet != FeetClimbing.NONE, config.climbJumpBackHeadOnGrab.get(),
-                    grabPressed);
-            if (jumper.jump(BACK_JUMPS[type - 7], player.getYRot() + 180, config)) {
+            JumpType type = ClimbLogic.backJumpType(feet != FeetClimbing.NONE,
+                    config.climbJumpBackHeadOnGrab.get(), grabPressed);
+            if (jumper.jump(type, player.getYRot() + 180, config)) {
                 jumped = true;
                 state.climbing = false;
             }
@@ -537,10 +537,6 @@ final class SelfClimbing {
         return Math.max(result, minY);
     }
 
-    /** The climb back jumps by the original's type numbers 7 to 10. */
-    private static final JumpType[] BACK_JUMPS = {JumpType.CLIMB_BACK_UP, JumpType.CLIMB_BACK_UP_HANDS_ONLY,
-            JumpType.CLIMB_BACK_HEAD, JumpType.CLIMB_BACK_HEAD_HANDS_ONLY};
-
     /** {@code setOnlyShouldClimbSpeed}: climbs at {@code speed} unless already moving up faster. */
     private double setClimbSpeed(double speed, double motionY, boolean fast, float speedFactor,
                                  SmartMovingClientConfig config) {
@@ -603,7 +599,8 @@ final class SelfClimbing {
         nextClimbDistance++;
         if (step != null) {
             SoundType sound = step.getSoundType();
-            SmartMovingClient.playSound(player, sound.getStepSound(), sound.getVolume() * 0.15f, sound.getPitch());
+            SmartMovingClient.playSound(player, sound.getStepSound(),
+                    sound.getVolume() * MovementSounds.CLIMB_STEP_VOLUME, sound.getPitch());
         }
     }
 }

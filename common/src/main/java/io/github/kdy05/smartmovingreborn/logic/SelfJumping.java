@@ -10,12 +10,12 @@ import io.github.kdy05.smartmovingreborn.logic.jump.JumpType;
 import io.github.kdy05.smartmovingreborn.logic.jump.WallJump;
 import io.github.kdy05.smartmovingreborn.logic.jump.WallJumpInput;
 import io.github.kdy05.smartmovingreborn.mixin.common.EntityAccessor;
+import io.github.kdy05.smartmovingreborn.network.MovementSounds;
 import io.github.kdy05.smartmovingreborn.render.SmartMovingRender;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.Mth;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.MoverType;
@@ -216,9 +216,8 @@ final class SelfJumping {
             player.setDeltaMovement(current.x, current.y - SwimLogic.VANILLA_LIQUID_JUMP, current.z);
             if (!moving.stillSwimmingJump() && onGround && jumpCharge == 0
                     && tryJump(JumpType.UP, Float.NaN, true, config)) {
-                RandomSource random = player.getRandom();
-                SmartMovingClient.playSound(player, SoundEvents.PLAYER_SPLASH, 0.05f,
-                        1 + (random.nextFloat() - random.nextFloat()) * 0.4f);
+                SmartMovingClient.playSound(player, SoundEvents.PLAYER_SPLASH, MovementSounds.SPLASH_VOLUME,
+                        MovementSounds.splashPitch(player.getRandom()));
             }
         }
 

@@ -1,5 +1,6 @@
 package io.github.kdy05.smartmovingreborn.logic.climb;
 
+import io.github.kdy05.smartmovingreborn.logic.jump.JumpType;
 import io.github.kdy05.smartmovingreborn.world.FeetClimbing;
 import io.github.kdy05.smartmovingreborn.world.HandsClimbing;
 import org.junit.jupiter.api.Test;
@@ -46,8 +47,8 @@ class ClimbLogicTest {
     void aTopHoldHangsStillAndCanJump() {
         ClimbLogic.Decision decision = up(HandsClimbing.TOP_HOLD, FeetClimbing.NONE, false);
         assertEquals(ClimbLogic.STILL, decision.speed());
-        assertEquals(6, decision.jumpType());
-        assertEquals(5, up(HandsClimbing.NONE, FeetClimbing.BASE_HOLD, false).jumpType());
+        assertEquals(JumpType.CLIMB_UP_HANDS_ONLY, decision.jumpType());
+        assertEquals(JumpType.CLIMB_UP, up(HandsClimbing.NONE, FeetClimbing.BASE_HOLD, false).jumpType());
         // Hands and feet both on the wall climb instead.
         assertEquals(ClimbLogic.STRAIGHT_UP, up(HandsClimbing.TOP_HOLD, FeetClimbing.BASE_HOLD, false).speed());
     }
@@ -100,13 +101,13 @@ class ClimbLogicTest {
 
     @Test
     void grabTurnsTheBackJumpIntoAHeadJump() {
-        assertEquals(9, ClimbLogic.backJumpType(true, true, true));
-        assertEquals(10, ClimbLogic.backJumpType(false, true, true));
-        assertEquals(7, ClimbLogic.backJumpType(true, true, false));
-        assertEquals(8, ClimbLogic.backJumpType(false, true, false));
+        assertEquals(JumpType.CLIMB_BACK_HEAD, ClimbLogic.backJumpType(true, true, true));
+        assertEquals(JumpType.CLIMB_BACK_HEAD_HANDS_ONLY, ClimbLogic.backJumpType(false, true, true));
+        assertEquals(JumpType.CLIMB_BACK_UP, ClimbLogic.backJumpType(true, true, false));
+        assertEquals(JumpType.CLIMB_BACK_UP_HANDS_ONLY, ClimbLogic.backJumpType(false, true, false));
         // move.jump.climb.back.head.on.grab off: the other way round.
-        assertEquals(7, ClimbLogic.backJumpType(true, false, true));
-        assertEquals(9, ClimbLogic.backJumpType(true, false, false));
+        assertEquals(JumpType.CLIMB_BACK_UP, ClimbLogic.backJumpType(true, false, true));
+        assertEquals(JumpType.CLIMB_BACK_HEAD, ClimbLogic.backJumpType(true, false, false));
     }
 
     @Test

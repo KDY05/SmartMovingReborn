@@ -51,6 +51,14 @@ public final class MovingState {
         StatePacketCodec.decode(0, this);
     }
 
+    /**
+     * In a side or back jump ({@code SmartMoving.isAngleJumping}): {@link #angleJumpType} 2 (left) to 6 (right),
+     * the jump direction in eighths of a turn.
+     */
+    public boolean angleJumping() {
+        return angleJumpType > 1 && angleJumpType < 7;
+    }
+
     /** Crawling, sliding or head jumping: the moves that use vanilla's crawling pose, {@code Pose.SWIMMING}. */
     public boolean lying() {
         return crawling || sliding || headJumping;

@@ -5,6 +5,7 @@ import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimSpeed;
 import io.github.kdy05.smartmovingreborn.mixin.common.EntityAccessor;
+import io.github.kdy05.smartmovingreborn.network.MovementSounds;
 import io.github.kdy05.smartmovingreborn.render.SwimParticles;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.world.ClimbOrientation;
@@ -13,7 +14,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.Pose;
@@ -23,6 +23,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The own player's swimming, diving and dipping ({@code handleSwimming}, {@code fromSwimmingOrDiving}). The
@@ -458,9 +461,8 @@ final class SelfSwimming {
         }
         distanceSwum += (float) distance;
         if (distanceSwum > 1.4285715f) {
-            RandomSource random = player.getRandom();
-            SmartMovingClient.playSound(player, SoundEvents.PLAYER_SPLASH, 0.05f,
-                    1 + (random.nextFloat() - random.nextFloat()) * 0.4f);
+            SmartMovingClient.playSound(player, SoundEvents.PLAYER_SPLASH, MovementSounds.SPLASH_VOLUME,
+                    MovementSounds.splashPitch(player.getRandom()));
             distanceSwum--;
         }
     }
@@ -486,19 +488,9 @@ final class SelfSwimming {
      * the top and the bottom, like 1.7.10's push that the original took back.
      */
     private Vec3 currentFlow() {
-        AABB box = player.getBoundingBox();
-        double top = box.minY + (small() ? SMALL_HEIGHT : STANDING_HEIGHT);
         Vec3 flow = Vec3.ZERO;
-        for (int x = Mth.floor(box.minX + 0.001); x <= Mth.floor(box.maxX - 0.001); x++) {
-            for (int z = Mth.floor(box.minZ + 0.001); z <= Mth.floor(box.maxZ - 0.001); z++) {
-                for (int y = Mth.floor(box.minY + 0.4); y <= Mth.floor(top - 0.4); y++) {
-                    BlockPos pos = new BlockPos(x, y, z);
-                    FluidState fluid = player.level().getFluidState(pos);
-                    if (fluid.is(FluidTags.WATER)) {
-                        flow = flow.add(fluid.getFlow(player.level(), pos));
-                    }
-                }
-            }
+        for (BlockPos pos : waterCells()) {
+            flow = flow.add(player.level().getFluidState(pos).getFlow(player.level(), pos));
         }
         return flow;
     }
@@ -620,23 +612,31 @@ final class SelfSwimming {
 
     /**
      * Whether the player is in water the way 1.7.10 saw it ({@code isInWater}): a water block in the cells of the
-     * box shrunk by 0.4 at the top and the bottom. The box is the original's, which was 0.8 high when small.
+     * box shrunk by 0.4 at the top and the bottom.
      */
     boolean inWater() {
+        return !waterCells().isEmpty();
+    }
+
+    /**
+     * The water blocks in the cells of the original's box (0.8 high when small) shrunk by 0.4 at the top and the
+     * bottom, where 1.7.10 found water.
+     */
+    private List<BlockPos> waterCells() {
         AABB box = player.getBoundingBox();
         double top = box.minY + (small() ? SMALL_HEIGHT : STANDING_HEIGHT);
-        int minY = Mth.floor(box.minY + 0.4);
-        int maxY = Mth.floor(top - 0.4);
+        List<BlockPos> cells = new ArrayList<>();
         for (int x = Mth.floor(box.minX + 0.001); x <= Mth.floor(box.maxX - 0.001); x++) {
             for (int z = Mth.floor(box.minZ + 0.001); z <= Mth.floor(box.maxZ - 0.001); z++) {
-                for (int y = minY; y <= maxY; y++) {
-                    if (player.level().getFluidState(new BlockPos(x, y, z)).is(FluidTags.WATER)) {
-                        return true;
+                for (int y = Mth.floor(box.minY + 0.4); y <= Mth.floor(top - 0.4); y++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    if (player.level().getFluidState(pos).is(FluidTags.WATER)) {
+                        cells.add(pos);
                     }
                 }
             }
         }
-        return false;
+        return cells;
     }
 
     /** Whether there is water within the original's box at the player's column ({@code isInLiquid}). */

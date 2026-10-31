@@ -1,5 +1,6 @@
 package io.github.kdy05.smartmovingreborn.logic.climb;
 
+import io.github.kdy05.smartmovingreborn.logic.jump.JumpType;
 import io.github.kdy05.smartmovingreborn.world.FeetClimbing;
 import io.github.kdy05.smartmovingreborn.world.HandsClimbing;
 
@@ -25,10 +26,10 @@ public final class ClimbLogic {
      * @param speed     the climbing speed before the factors, NaN for not climbing
      * @param handsType the hands' animation: 0 none, 1 hold, 2 reach up
      * @param feetType  the feet's animation: 0 none, 1 step
-     * @param jumpType  in a hold to jump up from, the climb jump to try first (5 with the feet on something, 6
-     *                  hanging); otherwise 0
+     * @param jumpType  in a hold to jump up from, the climb jump to try first ({@link JumpType#CLIMB_UP} with the
+     *                  feet on something, {@link JumpType#CLIMB_UP_HANDS_ONLY} hanging); otherwise null
      */
-    public record Decision(double speed, int handsType, int feetType, int jumpType) {
+    public record Decision(double speed, int handsType, int feetType, JumpType jumpType) {
         public boolean climbing() {
             return !Double.isNaN(speed);
         }
@@ -48,7 +49,7 @@ public final class ClimbLogic {
         double speed = Double.NaN;
         int handsType = 0;
         int feetType = 0;
-        int jumpType = 0;
+        JumpType jumpType = null;
         if (up) {
             hands = hands.toUp();
             if (feet == FeetClimbing.FAST_UP && !(hands == HandsClimbing.NONE && onGround && !feetOnBed)) {
@@ -73,7 +74,7 @@ public final class ClimbLogic {
                 feetType = 1;
             } else if (hands == HandsClimbing.TOP_HOLD || feet == FeetClimbing.BASE_HOLD
                     || feet == FeetClimbing.SLOW_UP_WITH_HOLD_WITHOUT_HANDS && hands == HandsClimbing.NONE) {
-                jumpType = feet != FeetClimbing.NONE ? 5 : 6;
+                jumpType = feet != FeetClimbing.NONE ? JumpType.CLIMB_UP : JumpType.CLIMB_UP_HANDS_ONLY;
                 speed = STILL;
                 boolean reach = hands == HandsClimbing.SINK && feet == FeetClimbing.BASE_HOLD
                         || hands == HandsClimbing.TOP_HOLD && feet == FeetClimbing.TOP_WITH_HANDS;
@@ -187,11 +188,12 @@ public final class ClimbLogic {
      * or when it is not with {@code move.jump.climb.back.head.on.grab} off; each with and without the feet on a
      * hold. The original named its flag for the feet case {@code handsOnly}, the other way round.
      *
-     * @return 7 or 8 for a jump up and back, 9 or 10 for a head jump, the first of each with the feet on a hold
+     * @return a jump up and back or a head jump, {@code HANDS_ONLY} without the feet on a hold
      */
-    public static int backJumpType(boolean feetHold, boolean headOnGrab, boolean grabPressed) {
+    public static JumpType backJumpType(boolean feetHold, boolean headOnGrab, boolean grabPressed) {
         boolean head = headOnGrab == grabPressed;
-        return head ? (feetHold ? 9 : 10) : (feetHold ? 7 : 8);
+        return head ? (feetHold ? JumpType.CLIMB_BACK_HEAD : JumpType.CLIMB_BACK_HEAD_HANDS_ONLY)
+                : (feetHold ? JumpType.CLIMB_BACK_UP : JumpType.CLIMB_BACK_UP_HANDS_ONLY);
     }
 
     /** The minimum movement per tick that still counts as climb sprinting ({@code isClimbSprintSpeed}). */
