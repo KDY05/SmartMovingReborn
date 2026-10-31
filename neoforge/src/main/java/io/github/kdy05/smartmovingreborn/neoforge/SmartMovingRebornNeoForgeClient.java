@@ -1,6 +1,5 @@
 package io.github.kdy05.smartmovingreborn.neoforge;
 
-import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
 import io.github.kdy05.smartmovingreborn.network.SoundMessage;
@@ -21,7 +20,7 @@ public final class SmartMovingRebornNeoForgeClient {
     }
 
     static void init(IEventBus modBus) {
-        SmartMovingReborn.initClient();
+        SmartMovingClient.init();
         modBus.addListener((RegisterKeyMappingsEvent event) -> KeyBindings.ALL.forEach(event::register));
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> SmartMovingClient.tick(Minecraft.getInstance()));
         NeoForge.EVENT_BUS.addListener((RenderGuiEvent.Post event) -> SmartMovingHud.render(event.getGuiGraphics()));

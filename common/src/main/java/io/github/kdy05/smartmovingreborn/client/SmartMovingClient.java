@@ -2,7 +2,7 @@ package io.github.kdy05.smartmovingreborn.client;
 
 import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
-import io.github.kdy05.smartmovingreborn.input.Button;
+import io.github.kdy05.smartmovingreborn.input.Buttons;
 import io.github.kdy05.smartmovingreborn.input.KeyBindings;
 import io.github.kdy05.smartmovingreborn.logic.MovingController;
 import io.github.kdy05.smartmovingreborn.mixin.client.CameraAccessor;
@@ -40,31 +40,45 @@ public final class SmartMovingClient {
     /** How long to wait after joining for the server's channel before assuming the server lacks the mod. */
     private static final int SERVER_DETECTION_TICKS = 100;
 
-    public static final Button GRAB = new Button();
-    public static final Button SNEAK = new Button();
-    public static final Button JUMP = new Button();
-    public static final Button SPRINT = new Button();
-    public static final Button LEFT = new Button();
-    public static final Button RIGHT = new Button();
-    public static final Button BACK = new Button();
+    public static final Buttons BUTTONS = new Buttons();
+    /**
+     * The own player's state. It outlives connections: the own player's logic holds it from the {@code LocalPlayer}
+     * constructor on, which runs before a new connection is noticed here.
+     */
     public static final MovingState LOCAL_STATE = new MovingState();
-    private static final Map<Integer, MovingState> OTHER_STATES = new HashMap<>();
 
-    private static ClientPacketListener session;
-    private static int sessionTicks;
-    private static boolean serverPresent;
-    private static boolean serverAbsenceReported;
-    /** Whether the server answered the first state with its configuration ({@link ConfigSyncMessage}). */
-    private static boolean configKnown;
-    /** The own movement rules and F9 state while the server's are in force, to restore afterwards; else null. */
-    private static Map<String, String> localRules;
-    private static boolean localEnabled;
-    private static long sentState;
-    private static boolean stateSent;
-    private static int lastPlayerCount;
-    private static int lastPlayerId;
+    /** The current connection's bookkeeping, replaced for each new one so that nothing carries over. */
+    private static Session session = new Session(null);
+
+    /** One connection's bookkeeping. */
+    private static final class Session {
+        final ClientPacketListener connection;
+        int ticks;
+        boolean serverPresent;
+        boolean serverAbsenceReported;
+        /** Whether the server answered the first state with its configuration ({@link ConfigSyncMessage}). */
+        boolean configKnown;
+        /** The own movement rules and F9 state while the server's are in force, to restore afterwards; else null. */
+        Map<String, String> localRules;
+        boolean localEnabled;
+        long sentState;
+        boolean stateSent;
+        int lastPlayerCount;
+        int lastPlayerId = -1;
+        final Map<Integer, MovingState> otherStates = new HashMap<>();
+
+        Session(ClientPacketListener connection) {
+            this.connection = connection;
+        }
+    }
 
     private SmartMovingClient() {
+    }
+
+    /** At start-up on the physical client, from each loader's client initialization. */
+    public static void init() {
+        SmartMovingReborn.initClient();
+        MovingController.setClient(new SmartMovingClientHooks());
     }
 
     private static SmartMovingClientConfig config() {
@@ -73,30 +87,30 @@ public final class SmartMovingClient {
 
     /** Whether Smart Moving should act: enabled with F9, supported by the server and configured by it. */
     public static boolean isActive() {
-        return config().enabled && serverPresent && configKnown;
+        return config().enabled && session.serverPresent && session.configKnown;
     }
 
     /** Called at the end of every client tick. */
     public static void tick(Minecraft minecraft) {
         ClientPacketListener connection = minecraft.getConnection();
-        if (connection != session) {
+        if (connection != session.connection) {
             startSession(connection);
         }
         LocalPlayer player = minecraft.player;
         if (connection == null || player == null) {
             return;
         }
-        sessionTicks++;
+        session.ticks++;
 
         while (KeyBindings.TOGGLE.consumeClick()) {
             config().enabled = !config().enabled;
             chat(player, config().enabled ? "enabled" : "disabled");
         }
-        if (!serverPresent) {
-            serverPresent = Network.isServerPresent();
-            if (!serverPresent) {
-                if (!serverAbsenceReported && sessionTicks > SERVER_DETECTION_TICKS) {
-                    serverAbsenceReported = true;
+        if (!session.serverPresent) {
+            session.serverPresent = Network.isServerPresent();
+            if (!session.serverPresent) {
+                if (!session.serverAbsenceReported && session.ticks > SERVER_DETECTION_TICKS) {
+                    session.serverAbsenceReported = true;
                     SmartMovingReborn.LOGGER.info("Server does not have Smart Moving Reborn, staying disabled");
                     chat(player, "server_missing");
                 }
@@ -111,10 +125,10 @@ public final class SmartMovingClient {
             ClimbDebug.reset();
         }
         sendState(minecraft);
-        OTHER_STATES.keySet().removeIf(id -> minecraft.level.getEntity(id) == null);
+        session.otherStates.keySet().removeIf(id -> minecraft.level.getEntity(id) == null);
         for (AbstractClientPlayer other : minecraft.level.players()) {
             SmartMovingRender.tickPlayer(other);
-            MovingState state = OTHER_STATES.get(other.getId());
+            MovingState state = session.otherStates.get(other.getId());
             if (state != null && state.sliding) {
                 SlideParticles.spawn(other, other.getX() - other.xo, other.getZ() - other.zo, config());
             }
@@ -126,17 +140,9 @@ public final class SmartMovingClient {
 
     private static void startSession(ClientPacketListener connection) {
         restoreLocalRules();
-        configKnown = false;
-        session = connection;
-        sessionTicks = 0;
-        serverPresent = false;
-        serverAbsenceReported = false;
-        stateSent = false;
-        lastPlayerCount = 0;
-        lastPlayerId = -1;
+        session = new Session(connection);
         MovingController.resetSelf();
         LOCAL_STATE.clear();
-        OTHER_STATES.clear();
     }
 
     /**
@@ -151,6 +157,10 @@ public final class SmartMovingClient {
         }
         LOCAL_STATE.sneakButton = minecraft.options.keyShift.isDown();
         LOCAL_STATE.jumping = player.input.jumping;
+        updateSizeFlags(player);
+    }
+
+    private static void updateSizeFlags(Player player) {
         LOCAL_STATE.small = player.getBbHeight() < 1.0f;
         LOCAL_STATE.smallFlying = MovingController.smallFlying();
     }
@@ -160,23 +170,14 @@ public final class SmartMovingClient {
      * current state (the original's heuristic: the player list grew or its last entry changed).
      */
     private static void sendState(Minecraft minecraft) {
-        long state = StatePacketCodec.encode(LOCAL_STATE);
-        boolean send = !stateSent || state != sentState;
-
         List<AbstractClientPlayer> players = minecraft.level.players();
         int count = players.size();
         int lastId = count == 0 ? -1 : players.get(count - 1).getId();
-        if (count > lastPlayerCount || (count == lastPlayerCount && lastId != lastPlayerId)) {
-            send = true;
-        }
-        lastPlayerCount = count;
-        lastPlayerId = lastId;
-
-        if (send) {
-            Network.sendToServer(new StateMessage(state));
-            sentState = state;
-            stateSent = true;
-        }
+        boolean newPlayer = count > session.lastPlayerCount
+                || (count == session.lastPlayerCount && lastId != session.lastPlayerId);
+        session.lastPlayerCount = count;
+        session.lastPlayerId = lastId;
+        sendState(newPlayer);
     }
 
     /**
@@ -187,13 +188,17 @@ public final class SmartMovingClient {
         if (!isActive()) {
             return;
         }
-        LOCAL_STATE.small = player.getBbHeight() < 1.0f;
-        LOCAL_STATE.smallFlying = MovingController.smallFlying();
+        updateSizeFlags(player);
+        sendState(false);
+    }
+
+    /** Sends the state if it changed since it was last sent, or if {@code always}. */
+    private static void sendState(boolean always) {
         long state = StatePacketCodec.encode(LOCAL_STATE);
-        if (!stateSent || state != sentState) {
+        if (always || !session.stateSent || state != session.sentState) {
             Network.sendToServer(new StateMessage(state));
-            sentState = state;
-            stateSent = true;
+            session.sentState = state;
+            session.stateSent = true;
         }
     }
 
@@ -202,14 +207,14 @@ public final class SmartMovingClient {
      * ones to restore when it ends, or keeps the own ones.
      */
     public static void onConfigSync(ConfigSyncMessage message) {
-        configKnown = true;
+        session.configKnown = true;
         if (!message.enforced()) {
             restoreLocalRules();
             return;
         }
-        if (localRules == null) {
-            localRules = config().writeMovementRules();
-            localEnabled = config().enabled;
+        if (session.localRules == null) {
+            session.localRules = config().writeMovementRules();
+            session.localEnabled = config().enabled;
         }
         config().loadMovementRules(message.rules())
                 .forEach(warning -> SmartMovingReborn.LOGGER.warn("Server configuration: {}", warning));
@@ -223,12 +228,12 @@ public final class SmartMovingClient {
     }
 
     private static void restoreLocalRules() {
-        if (localRules == null) {
+        if (session.localRules == null) {
             return;
         }
-        config().loadMovementRules(localRules);
-        config().enabled = localEnabled;
-        localRules = null;
+        config().loadMovementRules(session.localRules);
+        config().enabled = session.localEnabled;
+        session.localRules = null;
     }
 
     /** Runs on the client thread. */
@@ -237,7 +242,8 @@ public final class SmartMovingClient {
         if (minecraft.player != null && message.entityId() == minecraft.player.getId()) {
             return;
         }
-        StatePacketCodec.decode(message.state(), OTHER_STATES.computeIfAbsent(message.entityId(), id -> new MovingState()));
+        StatePacketCodec.decode(message.state(),
+                session.otherStates.computeIfAbsent(message.entityId(), id -> new MovingState()));
     }
 
     /**
@@ -247,13 +253,13 @@ public final class SmartMovingClient {
      */
     public static void updateButtons(Player player) {
         Input input = ((LocalPlayer) player).input;
-        GRAB.update(KeyBindings.GRAB.isDown());
-        SNEAK.update(input.shiftKeyDown);
-        JUMP.update(input.jumping);
-        SPRINT.update(Minecraft.getInstance().options.keySprint.isDown());
-        LEFT.update(input.left);
-        RIGHT.update(input.right);
-        BACK.update(input.down);
+        BUTTONS.grab.update(KeyBindings.GRAB.isDown());
+        BUTTONS.sneak.update(input.shiftKeyDown);
+        BUTTONS.jump.update(input.jumping);
+        BUTTONS.sprint.update(Minecraft.getInstance().options.keySprint.isDown());
+        BUTTONS.left.update(input.left);
+        BUTTONS.right.update(input.right);
+        BUTTONS.back.update(input.down);
     }
 
     /** Whether the own player's current movement input goes forward. */
@@ -307,14 +313,14 @@ public final class SmartMovingClient {
      */
     public static void playSound(Player player, SoundEvent sound, float volume, float pitch) {
         player.playSound(sound, volume, pitch);
-        if (serverPresent) {
+        if (session.serverPresent) {
             Network.sendSoundToServer(new SoundMessage(sound.getLocation(), volume, pitch));
         }
     }
 
     /** The last state received for another player, or null. */
     public static MovingState getOtherState(int entityId) {
-        return OTHER_STATES.get(entityId);
+        return session.otherStates.get(entityId);
     }
 
     private static void chat(LocalPlayer player, String key) {
@@ -325,7 +331,7 @@ public final class SmartMovingClient {
 
     /** Adds Smart Moving lines to the left side of the F3 screen for {@code move.debug.state} and {@code move.debug.climb}. */
     public static void appendDebugInfo(List<String> lines) {
-        if (session == null) {
+        if (session.connection == null) {
             return;
         }
         ClimbDebug.appendDebugInfo(lines);
@@ -333,13 +339,13 @@ public final class SmartMovingClient {
             return;
         }
         lines.add("");
-        lines.add("[Smart Moving] enabled=" + config().enabled + " server=" + serverPresent
-                + " config=" + (!configKnown ? "pending" : localRules != null ? "server" : "local")
-                + " grab=" + GRAB.pressed);
+        lines.add("[Smart Moving] enabled=" + config().enabled + " server=" + session.serverPresent
+                + " config=" + (!session.configKnown ? "pending" : session.localRules != null ? "server" : "local")
+                + " grab=" + BUTTONS.grab.pressed);
         lines.add("[Smart Moving] self: " + LOCAL_STATE.describe());
         Entity target = Minecraft.getInstance().crosshairPickEntity;
         if (target instanceof AbstractClientPlayer other) {
-            MovingState state = OTHER_STATES.get(other.getId());
+            MovingState state = session.otherStates.get(other.getId());
             lines.add("[Smart Moving] " + other.getName().getString() + ": "
                     + (state == null ? "no state received" : state.describe()));
         }

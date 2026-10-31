@@ -1,13 +1,12 @@
 package io.github.kdy05.smartmovingreborn.logic;
 
-import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.input.Button;
+import io.github.kdy05.smartmovingreborn.input.Buttons;
 import io.github.kdy05.smartmovingreborn.logic.crawl.CrawlLogic;
 import io.github.kdy05.smartmovingreborn.logic.jump.JumpType;
 import io.github.kdy05.smartmovingreborn.logic.slide.SlideLogic;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
-import io.github.kdy05.smartmovingreborn.render.SlideParticles;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
@@ -38,6 +37,7 @@ public final class SelfMoving {
 
     final Player player;
     final MovingState state;
+    final ClientHooks client;
     /** The box moved a block up while the model stays put, for a head jump, climb crawling, swimming or flying. */
     final BoxLift lift;
     private final ToggleState toggles = new ToggleState();
@@ -77,12 +77,13 @@ public final class SelfMoving {
     /** The vertical motion before this tick's jumps, which vanilla's flying keeps 0.6 of. */
     private double travelStartY;
 
-    SelfMoving(Player player, MovingState state) {
+    SelfMoving(Player player, MovingState state, ClientHooks client) {
         this.player = player;
         this.state = state;
-        this.lift = new BoxLift(player);
+        this.client = client;
+        this.lift = new BoxLift(player, client);
         this.jumping = new SelfJumping(this);
-        this.climbing = new SelfClimbing(player, state, jumping::climbJump);
+        this.climbing = new SelfClimbing(player, state, client, jumping::climbJump);
         this.swimming = new SelfSwimming(this);
         this.flying = new SelfFlying(this);
         reset();
@@ -133,8 +134,15 @@ public final class SelfMoving {
     }
 
     /** Once per tick, before vanilla turns the input into movement (the original's {@code updateEntityActionState}). */
-    void updateActionState(Button sneak, Button grab, Button jump, Button sprint, Button left, Button right,
-                           Button back, boolean forwardPressed, boolean jumpInput, SmartMovingClientConfig config) {
+    void updateActionState(Buttons buttons, boolean forwardPressed, boolean jumpInput,
+                           SmartMovingClientConfig config) {
+        Button sneak = buttons.sneak;
+        Button grab = buttons.grab;
+        Button jump = buttons.jump;
+        Button sprint = buttons.sprint;
+        Button left = buttons.left;
+        Button right = buttons.right;
+        Button back = buttons.back;
         this.jumpInput = jumpInput;
         if (!jumpInput) {
             swimming.stopStillSwimmingJump();
@@ -197,9 +205,9 @@ public final class SelfMoving {
         boolean wantSneak = config.sneak.get() && wouldWantSneak;
         boolean wantSprint = SpeedLogic.wantSprint(config.sprint.get(), sprint.pressed,
                 forwardPressed || state.climbing || SwimLogic.sprintInput(state.swimming, state.diving,
-                        SmartMovingClient.isMovePressed(player), sneak.pressed, jump.pressed,
+                        client.isMovePressed(player), sneak.pressed, jump.pressed,
                         config.swimDownOnSneak.get(), config.diveDownOnSneak.get())
-                        || smartFlying && (SmartMovingClient.isMovePressed(player) || jump.pressed || sneak.pressed),
+                        || smartFlying && (client.isMovePressed(player) || jump.pressed || sneak.pressed),
                 state.sliding, disabled);
 
         if (!onGround && state.fast && !state.climbing && !state.ceilingClimbing && !inWater) {
@@ -235,7 +243,7 @@ public final class SelfMoving {
         wouldSneak = wouldWantSneak && !wantSprint && !state.climbing;
         boolean wasSlow = state.slow;
         state.slow = wantSneak && wouldSneak;
-        climbing.updateHolding(sneak.pressed, toggles.isCrawlToggled(), SmartMovingClient.isInputBlocked());
+        climbing.updateHolding(sneak.pressed, toggles.isCrawlToggled(), client.isInputBlocked());
         updateCrawlClimbing(sneak, forwardPressed, config);
         updateClimbCrawling(sneak, mustCrawl, config);
         if (grab.startPressed) {
@@ -309,7 +317,7 @@ public final class SelfMoving {
         if (now && !was) {
             if (player.getPose() != Pose.SWIMMING) {
                 player.setPose(Pose.SWIMMING);
-                SmartMovingClient.sendStateNow(player);
+                client.sendStateNow(player);
                 lift.lift(BoxLift.Reason.CLIMB_CRAWL);
             }
             boolean collided = player.horizontalCollision;
@@ -359,7 +367,7 @@ public final class SelfMoving {
         climbing.reset();
         swimming.reset();
         flying.reset();
-        SmartMovingClient.sendStateNow(player);
+        client.sendStateNow(player);
     }
 
     /** Back to the standing box from a small one, moving the player by {@code dy} without collisions. */
@@ -384,7 +392,7 @@ public final class SelfMoving {
         } else if (keepReason) {
             lift.retag(reason);
         }
-        SmartMovingClient.sendStateNow(player);
+        client.sendStateNow(player);
     }
 
     /**
@@ -749,7 +757,7 @@ public final class SelfMoving {
         turnBodyWhileSmall(state.swimming || state.diving || state.dipping || state.crawling);
         if (state.sliding) {
             Vec3 motion = player.getDeltaMovement();
-            SlideParticles.spawn(player, motion.x, motion.z, config);
+            client.slideParticles(player, motion.x, motion.z, config);
         }
         swimming.afterTick(config);
 

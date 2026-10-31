@@ -1,6 +1,5 @@
 package io.github.kdy05.smartmovingreborn.logic;
 
-import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.logic.fly.FlyLogic;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
@@ -104,7 +103,7 @@ final class SelfFlying {
         }
         if (player.getBbHeight() < 1) {
             moving.lift.retag(BoxLift.Reason.FLY);
-            SmartMovingClient.sendStateNow(player);
+            moving.client.sendStateNow(player);
         } else {
             moving.toSmallBoxUp(BoxLift.Reason.FLY, true);
         }
@@ -168,10 +167,10 @@ final class SelfFlying {
             return false;
         }
         Abilities abilities = player.getAbilities();
-        boolean sneak = SmartMovingClient.isSneakInput(player);
-        boolean jump = SmartMovingClient.isJumpPressed(player);
+        boolean sneak = moving.client.isSneakInput(player);
+        boolean jump = moving.client.isJumpPressed(player);
         Vec3 motion = player.getDeltaMovement();
-        if (SmartMovingClient.isControlledCamera(player)) {
+        if (moving.client.isControlledCamera(player)) {
             int vertical = (jump ? 1 : 0) - (sneak ? 1 : 0);
             motion = motion.subtract(0, vertical * abilities.getFlyingSpeed() * 3.0f, 0);
         }

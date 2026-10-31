@@ -1,7 +1,7 @@
 package io.github.kdy05.smartmovingreborn.logic;
 
 import io.github.kdy05.smartmovingreborn.SmartMovingReborn;
-import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
+import io.github.kdy05.smartmovingreborn.input.Buttons;
 import io.github.kdy05.smartmovingreborn.mixin.server.ServerGamePacketListenerImplAccessor;
 import io.github.kdy05.smartmovingreborn.network.ServerNetworkHandler;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
@@ -54,18 +54,22 @@ public final class MovingController {
      */
     private static final double SWIM_FLUID_EYE_HEIGHT = 0.74 - 0.11111111F;
 
-    /**
-     * The client's own player, set when it is constructed. Always null on a dedicated server, so the hooks in
-     * common classes never reach {@link SmartMovingClient} there.
-     */
+    /** The client's side of the logic, set at start-up. Always null on a dedicated server. */
+    private static ClientHooks client;
+    /** The client's own player, set when it is constructed. Always null on a dedicated server. */
     private static SelfMoving self;
 
     private MovingController() {
     }
 
+    /** Client: at start-up, before any player exists. */
+    public static void setClient(ClientHooks hooks) {
+        client = hooks;
+    }
+
     /** Client: called from the {@code LocalPlayer} constructor (a new one after respawning or changing dimension). */
     public static void setSelf(Player player) {
-        self = new SelfMoving(player, SmartMovingClient.LOCAL_STATE);
+        self = new SelfMoving(player, client.localState(), client);
     }
 
     /** Client: forgets the own player's moves when a new connection starts. */
@@ -82,9 +86,19 @@ public final class MovingController {
         }
     }
 
+    /** Whether Smart Moving acts on this client; never on a dedicated server. */
+    private static boolean isClientActive() {
+        return client != null && client.isActive();
+    }
+
+    /** Whether {@code entity} is the client's own player. */
+    private static boolean isSelf(Entity entity) {
+        return self != null && entity == self.player;
+    }
+
     /** Whether {@code entity} is the client's own player and Smart Moving is active for it. */
     private static boolean isActiveSelf(Entity entity) {
-        return self != null && entity == self.player && SmartMovingClient.isActive();
+        return isSelf(entity) && isClientActive();
     }
 
     /**
@@ -124,15 +138,14 @@ public final class MovingController {
      * buttons are updated first, also while inactive so that they never carry a stale press.
      */
     public static boolean serverAiStep(Player player) {
-        if (self != null && player == self.player) {
-            SmartMovingClient.updateButtons(player);
-        }
-        if (!isActiveSelf(player)) {
+        if (!isSelf(player)) {
             return false;
         }
-        self.updateActionState(SmartMovingClient.SNEAK, SmartMovingClient.GRAB, SmartMovingClient.JUMP,
-                SmartMovingClient.SPRINT, SmartMovingClient.LEFT, SmartMovingClient.RIGHT, SmartMovingClient.BACK,
-                SmartMovingClient.isForwardPressed(player), SmartMovingClient.isJumpPressed(player),
+        Buttons buttons = client.updateButtons(player);
+        if (!isClientActive()) {
+            return false;
+        }
+        self.updateActionState(buttons, client.isForwardPressed(player), client.isJumpPressed(player),
                 SmartMovingReborn.CLIENT_CONFIG);
         return false;
     }
@@ -175,22 +188,22 @@ public final class MovingController {
 
     /** Whether {@code player} is the own player flying Smart Moving's way ({@code isFlying}). */
     public static boolean smartFlying(Player player) {
-        return self != null && player == self.player && SmartMovingClient.isActive() && self.smartFlying();
+        return isActiveSelf(player) && self.smartFlying();
     }
 
     /** Whether the own player's box is a flyer's, small and a block up ({@link MovingState#smallFlying}). */
     public static boolean smallFlying() {
-        return self != null && SmartMovingClient.isActive() && self.flyingBox();
+        return self != null && isClientActive() && self.flyingBox();
     }
 
     /** The own player's jump charge for the charge bar, 0 while Smart Moving is inactive. */
     public static float jumpCharge() {
-        return self != null && SmartMovingClient.isActive() ? self.jumpCharge() : 0;
+        return self != null && isClientActive() ? self.jumpCharge() : 0;
     }
 
     /** The own player's head jump charge for the charge bar, 0 while Smart Moving is inactive. */
     public static float headJumpCharge() {
-        return self != null && SmartMovingClient.isActive() ? self.headJumpCharge() : 0;
+        return self != null && isClientActive() ? self.headJumpCharge() : 0;
     }
 
     /**
@@ -307,8 +320,7 @@ public final class MovingController {
      * The sneaking rule also covers vanilla sneaking, like the original.
      */
     public static boolean hideNameTag(Entity entity) {
-        if (!(entity instanceof Player player) || self != null && player == self.player
-                || !SmartMovingClient.isActive()) {
+        if (!(entity instanceof Player player) || isSelf(player) || !isClientActive()) {
             return false;
         }
         MovingState state = stateOf(player);
@@ -329,10 +341,10 @@ public final class MovingController {
         if (player instanceof ServerPlayer serverPlayer) {
             return isActiveOnServer(serverPlayer) ? ServerNetworkHandler.getState(serverPlayer) : null;
         }
-        if (self != null && player == self.player) {
-            return SmartMovingClient.isActive() ? self.state : null;
+        if (isSelf(player)) {
+            return isClientActive() ? self.state : null;
         }
-        return player.level().isClientSide() ? SmartMovingClient.getOtherState(player.getId()) : null;
+        return player.level().isClientSide() && client != null ? client.otherState(player.getId()) : null;
     }
 
     // Pose and size
@@ -356,8 +368,8 @@ public final class MovingController {
         if (player.isFallFlying() || player.isAutoSpinAttack()) {
             return false;
         }
-        if (self != null && player == self.player) {
-            return SmartMovingClient.isActive() && self.smallPose();
+        if (isSelf(player)) {
+            return isClientActive() && self.smallPose();
         }
         MovingState state = stateOf(player);
         return state != null && state.smallPose();

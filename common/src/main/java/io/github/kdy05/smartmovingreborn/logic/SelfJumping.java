@@ -1,6 +1,5 @@
 package io.github.kdy05.smartmovingreborn.logic;
 
-import io.github.kdy05.smartmovingreborn.client.SmartMovingClient;
 import io.github.kdy05.smartmovingreborn.config.SmartMovingClientConfig;
 import io.github.kdy05.smartmovingreborn.input.Button;
 import io.github.kdy05.smartmovingreborn.logic.jump.AngleJumpInput;
@@ -11,7 +10,6 @@ import io.github.kdy05.smartmovingreborn.logic.jump.WallJump;
 import io.github.kdy05.smartmovingreborn.logic.jump.WallJumpInput;
 import io.github.kdy05.smartmovingreborn.mixin.common.EntityAccessor;
 import io.github.kdy05.smartmovingreborn.network.MovementSounds;
-import io.github.kdy05.smartmovingreborn.render.SmartMovingRender;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
 import net.minecraft.sounds.SoundEvents;
@@ -215,7 +213,7 @@ final class SelfJumping {
             player.setDeltaMovement(current.x, current.y - SwimLogic.VANILLA_LIQUID_JUMP, current.z);
             if (!moving.stillSwimmingJump() && onGround && jumpCharge == 0
                     && tryJump(JumpType.UP, Float.NaN, true, config)) {
-                SmartMovingClient.playSound(player, SoundEvents.PLAYER_SPLASH, MovementSounds.SPLASH_VOLUME,
+                moving.client.playSound(player, SoundEvents.PLAYER_SPLASH, MovementSounds.SPLASH_VOLUME,
                         MovementSounds.splashPitch(player.getRandom()));
             }
         }
@@ -290,7 +288,7 @@ final class SelfJumping {
             wallJumps.jumped(state.headJumping);
             player.setYRot(angle);
             state.climbBackJumping = true;
-            SmartMovingRender.startClimbBackJump(player, state.headJumping);
+            moving.client.startClimbBackJump(player, state.headJumping);
         }
         return true;
     }
@@ -322,7 +320,7 @@ final class SelfJumping {
         player.setYRot(angle);
         state.wallJumping = true;
         player.fallDistance = 0;
-        SmartMovingRender.startWallJump(player, angle);
+        moving.client.startWallJump(player, angle);
     }
 
     /**
