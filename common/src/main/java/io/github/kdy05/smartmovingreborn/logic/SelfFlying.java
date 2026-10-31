@@ -6,7 +6,6 @@ import io.github.kdy05.smartmovingreborn.logic.fly.FlyLogic;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
 import net.minecraft.world.entity.MoverType;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Abilities;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
@@ -96,8 +95,8 @@ final class SelfFlying {
     }
 
     /**
-     * The flyer's box: small and a block up, like a swimmer's. The small pose applies at once and the server
-     * learns of it before the movement. A box already small, from crawling or a head jump, stays where it is.
+     * The flyer's box: small and a block up, like a swimmer's. A box already small, from crawling or a head jump,
+     * stays where it is.
      */
     private void toFlyingBox() {
         if (flyingBox()) {
@@ -105,15 +104,10 @@ final class SelfFlying {
         }
         if (player.getBbHeight() < 1) {
             moving.lift.retag(BoxLift.Reason.FLY);
+            SmartMovingClient.sendStateNow(player);
         } else {
-            player.setPose(Pose.SWIMMING);
-            if (moving.fits(Pose.SWIMMING, 1)) {
-                moving.lift.lift(BoxLift.Reason.FLY);
-            } else {
-                moving.lift.retag(BoxLift.Reason.FLY);
-            }
+            moving.toSmallBoxUp(BoxLift.Reason.FLY, true);
         }
-        SmartMovingClient.sendStateNow(player);
     }
 
     /**

@@ -19,7 +19,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.MoverType;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 
@@ -270,16 +269,9 @@ final class SelfJumping {
         }
         if (type.base().head() && !state.headJumping) {
             state.headJumping = true;
-            // The original raised the bottom of the box by a block and left the model where it was. Here the
-            // box shrinks from the feet and the model is drawn a block below it, so the player rises a block
-            // instead. The small pose applies at once, not at the end of the tick, and the server learns of it
-            // before this tick's movement, so neither moves a standing box a block up. The small box a block
-            // up lies within the standing one, so it fits wherever the player stood, like the original's.
-            player.setPose(Pose.SWIMMING);
-            SmartMovingClient.sendStateNow(player);
-            if (moving.fits(Pose.SWIMMING, 1)) {
-                moving.lift.lift(BoxLift.Reason.HEAD_JUMP);
-            }
+            // The small box a block up lies within the standing one, so it fits wherever the player stood, like
+            // the original's. A head jump's box at the feet has no lift to undo.
+            moving.toSmallBoxUp(BoxLift.Reason.HEAD_JUMP, false);
         }
         player.hasImpulse = true;
         player.setOnGround(false);

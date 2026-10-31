@@ -556,14 +556,7 @@ final class SelfSwimming {
             moving.lift.retag(BoxLift.Reason.SWIM);
             return;
         }
-        // Like a head jump's: the small pose applies at once and the server learns of it before the movement.
-        player.setPose(Pose.SWIMMING);
-        SmartMovingClient.sendStateNow(player);
-        if (moving.fits(Pose.SWIMMING, 1)) {
-            moving.lift.lift(BoxLift.Reason.SWIM);
-        } else {
-            moving.lift.retag(BoxLift.Reason.SWIM);
-        }
+        moving.toSmallBoxUp(BoxLift.Reason.SWIM, true);
     }
 
     /** Back to the standing box from a swimmer's, growing down by the block it was raised by. */

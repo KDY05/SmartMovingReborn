@@ -93,9 +93,7 @@ public final class SelfMoving {
      * where that fits, like {@link #endSmallMoves}, so that the player does not appear to jump a block.
      */
     void disable() {
-        if (lift.any() && fits(Pose.SWIMMING, -1)) {
-            lift.shift(-1);
-        }
+        dropLift();
         reset();
     }
 
@@ -350,10 +348,7 @@ public final class SelfMoving {
      * model's feet where that fits, so that the player does not appear to jump a block.
      */
     private void endSmallMoves() {
-        if (lift.any() && fits(Pose.SWIMMING, -1)) {
-            lift.shift(-1);
-        }
-        lift.reset();
+        dropLift();
         state.crawling = false;
         state.sliding = false;
         state.headJumping = false;
@@ -370,6 +365,36 @@ public final class SelfMoving {
     void standUpFromSmall(double dy) {
         lift.shift(dy);
         player.setPose(Pose.STANDING);
+    }
+
+    /**
+     * From the standing box to the small one a block up, for {@code reason}. The original raised the bottom of its
+     * box and left the model where it was; this port's box shrinks from the feet, so the player rises a block and
+     * the model is drawn a block below it. The small pose applies at once, not at the end of the tick, and the
+     * server learns of it before this tick's movement, so neither moves a standing box a block up.
+     *
+     * @param keepReason where the small box does not fit a block up it stays at the feet; whether it is then
+     *                   still small for {@code reason} (a swimmer's or flyer's), not just for the move's flag
+     */
+    void toSmallBoxUp(BoxLift.Reason reason, boolean keepReason) {
+        player.setPose(Pose.SWIMMING);
+        if (fits(Pose.SWIMMING, 1)) {
+            lift.lift(reason);
+        } else if (keepReason) {
+            lift.retag(reason);
+        }
+        SmartMovingClient.sendStateNow(player);
+    }
+
+    /**
+     * Forgets the box lift. A box a block up goes back down to the model's feet where that fits, so that the
+     * player does not appear to jump a block.
+     */
+    private void dropLift() {
+        if (lift.any() && fits(Pose.SWIMMING, -1)) {
+            lift.shift(-1);
+        }
+        lift.reset();
     }
 
     /** Whether any block collides with the player's box between heights {@code minY} and {@code maxY}. */
