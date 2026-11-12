@@ -8,20 +8,26 @@ class CrawlLogicTest {
     @Test
     void crawlingStaysDownWhileStandingDoesNotFit() {
         // A crawling player stays down even where crouching would fit, like the original.
-        assertTrue(CrawlLogic.mustCrawl(true, false, true, false, true));
-        assertFalse(CrawlLogic.mustCrawl(true, true, true, false, true));
+        assertTrue(CrawlLogic.mustCrawl(true, false, true, false, true, false));
+        assertFalse(CrawlLogic.mustCrawl(true, true, true, false, true, false));
     }
 
     @Test
     void standingPlayerIsForcedOnlyWhenCrouchingDoesNotFitEither() {
-        assertFalse(CrawlLogic.mustCrawl(false, false, true, false, true));
-        assertTrue(CrawlLogic.mustCrawl(false, false, false, false, true));
+        assertFalse(CrawlLogic.mustCrawl(false, false, true, false, true, false));
+        assertTrue(CrawlLogic.mustCrawl(false, false, false, false, true, false));
+    }
+
+    @Test
+    void walkingNearADoorDoesNotStartForcedCrawling() {
+        assertFalse(CrawlLogic.mustCrawl(false, false, false, false, true, true));
+        assertTrue(CrawlLogic.mustCrawl(true, false, false, false, true, true));
     }
 
     @Test
     void flyingWithItsOwnSmallSizeIsNeverForced() {
-        assertFalse(CrawlLogic.mustCrawl(true, false, false, true, true));
-        assertTrue(CrawlLogic.mustCrawl(true, false, false, true, false));
+        assertFalse(CrawlLogic.mustCrawl(true, false, false, true, true, false));
+        assertTrue(CrawlLogic.mustCrawl(true, false, false, true, false, false));
     }
 
     @Test
