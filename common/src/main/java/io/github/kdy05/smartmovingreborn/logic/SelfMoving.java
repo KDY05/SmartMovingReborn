@@ -8,6 +8,7 @@ import io.github.kdy05.smartmovingreborn.logic.jump.JumpType;
 import io.github.kdy05.smartmovingreborn.logic.slide.SlideLogic;
 import io.github.kdy05.smartmovingreborn.logic.swim.SwimLogic;
 import io.github.kdy05.smartmovingreborn.state.MovingState;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.MoverType;
@@ -15,6 +16,7 @@ import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -165,7 +167,8 @@ public final class SelfMoving {
         // Sliding and head jumping keep the small pose on their own.
         boolean mustCrawl = !state.sliding && !state.headJumping && CrawlLogic.mustCrawl(crawling,
                 fits(Pose.STANDING), fits(Pose.CROUCHING), flying,
-                this.flying.flyEnabled(config) || (config.levitateSmall.get() && !player.isSpectator()));
+                this.flying.flyEnabled(config) || (config.levitateSmall.get() && !player.isSpectator()),
+                !crawling && nearDoor());
         boolean inputContinueCrawl = CrawlLogic.inputContinueCrawl(config.crawlToggle.get(), toggles.isCrawlToggled(),
                 sneak.pressed, config.climbFree.get(), grab.pressed);
         boolean wouldWantCrawl = CrawlLogic.wantCrawl(true, crawling, flying,
@@ -409,6 +412,22 @@ public final class SelfMoving {
     private boolean solidBetween(double minY, double maxY) {
         AABB box = player.getBoundingBox();
         return !player.level().noCollision(player, new AABB(box.minX, minY, box.minZ, box.maxX, maxY, box.maxZ));
+    }
+
+    /** A door immediately beside the standing box should not make walking into it start crawling. */
+    private boolean nearDoor() {
+        AABB box = player.getDimensions(Pose.STANDING).makeBoundingBox(player.position()).inflate(0.1, 0, 0.1);
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX); x++) {
+            for (int y = Mth.floor(box.minY); y <= Mth.floor(box.maxY); y++) {
+                for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ); z++) {
+                    if (player.level().getBlockState(pos.set(x, y, z)).getBlock() instanceof DoorBlock) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**

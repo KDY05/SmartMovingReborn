@@ -15,11 +15,15 @@ public final class CrawlLogic {
     /**
      * Whether the space forces crawling. The original only kept a crawling player down; vanilla additionally
      * forces its own crawl when neither standing nor crouching fits, and that case becomes Smart Moving crawling
-     * too. Flying with its own small size ({@code move.fly} or {@code move.levitate.small}) never forces it.
+     * too. A nearby door is not treated as a reason to start crawling. Flying with its own small size
+     * ({@code move.fly} or {@code move.levitate.small}) never forces it.
      */
     public static boolean mustCrawl(boolean crawling, boolean fitsStanding, boolean fitsCrouching,
-                                    boolean flying, boolean flyingKeepsSmall) {
+                                    boolean flying, boolean flyingKeepsSmall, boolean nearDoor) {
         if (flying && flyingKeepsSmall) {
+            return false;
+        }
+        if (!crawling && nearDoor) {
             return false;
         }
         return crawling ? !fitsStanding : !fitsStanding && !fitsCrouching;
